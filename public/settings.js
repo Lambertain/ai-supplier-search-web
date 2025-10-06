@@ -184,27 +184,48 @@ async function loadSettings() {
 }
 
 function applyTemplate(key) {
+  console.log('applyTemplate called with key:', key);
+  console.log('PROMPT_FIELDS:', PROMPT_FIELDS);
+  console.log('EMAIL_TEMPLATE_FIELDS:', EMAIL_TEMPLATE_FIELDS);
+
   if (PROMPT_FIELDS[key]) {
-    const field = document.querySelector(PROMPT_FIELDS[key]);
+    const selector = PROMPT_FIELDS[key];
+    console.log('Looking for prompt field with selector:', selector);
+    const field = document.querySelector(selector);
+    console.log('Found field:', field);
     if (field) {
-      field.value = DEFAULT_PROMPTS[key];
+      const templateValue = DEFAULT_PROMPTS[key];
+      console.log('Setting value to:', templateValue);
+      field.value = templateValue;
       setStatus('Промпт відновлено зі стандартного шаблону.', 'info');
+    } else {
+      console.error('Field not found for selector:', selector);
     }
     return;
   }
 
   if (key === 'sendgridRecommendations') {
+    console.log('Applying sendgrid recommendations');
     updateSendgridNote({ sendgridPolicy: { recommendations: DEFAULT_SENDGRID_RECOMMENDATIONS } });
     setStatus('Рекомендації SendGrid відновлено.', 'info');
     return;
   }
 
   if (EMAIL_TEMPLATE_FIELDS[key]) {
-    const field = settingsForm.querySelector(EMAIL_TEMPLATE_FIELDS[key]);
+    const selector = EMAIL_TEMPLATE_FIELDS[key];
+    console.log('Looking for email template field with selector:', selector);
+    const field = settingsForm.querySelector(selector);
+    console.log('Found field:', field);
     if (field) {
-      field.value = DEFAULT_EMAIL_TEMPLATES[key];
+      const templateValue = DEFAULT_EMAIL_TEMPLATES[key];
+      console.log('Setting value to:', templateValue);
+      field.value = templateValue;
       setStatus('Шаблон листа повернуто до стандартного тексту.', 'info');
+    } else {
+      console.error('Field not found for selector:', selector);
     }
+  } else {
+    console.warn('Unknown template key:', key);
   }
 }
 
@@ -221,13 +242,6 @@ settingsForm.addEventListener('submit', async (event) => {
   } catch (error) {
     setStatus(Помилка: , 'error');
   }
-});
-
-document.querySelectorAll('.template-btn').forEach((button) => {
-  button.addEventListener('click', (event) => {
-    const key = event.currentTarget.dataset.template;
-    applyTemplate(key);
-  });
 });
 
 async function loadOpenAIModels() {
@@ -274,7 +288,22 @@ async function loadOpenAIModels() {
   }
 }
 
-document.querySelector('#loadModels').addEventListener('click', loadOpenAIModels);
-
+// Initialize page
 await loadSettings();
 await loadOpenAIModels();
+
+// Attach event listeners after page loads
+document.querySelector('#loadModels').addEventListener('click', loadOpenAIModels);
+
+const templateButtons = document.querySelectorAll('.template-btn');
+console.log('Found template buttons:', templateButtons.length);
+templateButtons.forEach((button, index) => {
+  console.log(`Button ${index}:`, button, 'data-template:', button.dataset.template);
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    const key = event.currentTarget.dataset.template;
+    console.log('Template button clicked:', key);
+    applyTemplate(key);
+  });
+});
+console.log('Event listeners attached to', templateButtons.length, 'buttons');
