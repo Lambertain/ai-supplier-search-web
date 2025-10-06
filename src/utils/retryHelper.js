@@ -1,4 +1,4 @@
-import pRetry from 'p-retry';
+import pRetry, { AbortError } from 'p-retry';
 
 /**
  * Retry configuration for different services
@@ -74,7 +74,7 @@ export function withRetry(fn, config = RETRY_CONFIG.openai) {
         } catch (error) {
           // If error is not retryable, throw AbortError to stop retrying
           if (!isRetryableError(error)) {
-            throw new pRetry.AbortError(error.message);
+            throw new AbortError(error.message);
           }
           throw error;
         }

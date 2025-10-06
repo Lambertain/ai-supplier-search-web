@@ -130,7 +130,7 @@ export const sendSummaryEmail = withSendGridRetry(async function sendSummaryEmai
     content: [
       {
         type: 'text/plain',
-        value: `Search ${summary.searchId} completed. ${summary.suppliersContacted} suppliers contacted, ${summary.emailsSent} emails sent.`
+        value: `Search ${summary.searchId} completed. ${summary.suppliersContacted} suppliers contacted, ${summary.emailsQueued} emails queued for sending.`
       }
     ]
   };

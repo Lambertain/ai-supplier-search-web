@@ -1,10 +1,11 @@
 ﻿import { nanoid } from 'nanoid';
 import { buildSupplierSearchMessages, buildEmailWriterMessages } from './promptService.js';
 import { chatCompletionJson } from './openaiService.js';
-import { prepareSendGridEmail, sendTransactionalEmail, sendSummaryEmail } from './sendgridService.js';
+import { prepareSendGridEmail, sendSummaryEmail } from './sendgridService.js';
 import { validateSearchRequest, isBusinessEmail, normalizeWebsite, sanitizeString } from '../utils/validation.js';
 import { renderTemplate } from '../utils/template.js';
 import { renderSpintax } from '../utils/spintax.js';
+import { queueEmail, getDailyEmailStats } from '../queues/emailQueue.js';
 import {
   createSearchRecord,
   addSuppliersToSearch,
@@ -168,17 +169,21 @@ async function generateEmailForSupplier({ supplier, settings, searchContext, abo
   return composeEmailContent({ emailJson, settings, supplier, searchContext });
 }
 
-async function sendEmailToSupplier({ supplier, emailContent, settings, searchContext }) {
+async function queueEmailForSupplier({ supplier, emailContent, settings, searchContext }) {
   const batchInfo = {
     current: searchContext.batchIndex + 1,
     total: searchContext.totalSuppliers
   };
   const prepared = prepareSendGridEmail({ supplier, emailContent, settings, searchContext, batchInfo });
-  const result = await sendTransactionalEmail(
+
+  const job = await queueEmail({
     prepared,
-    settings.apiKeys?.sendgrid || process.env.SENDGRID_API_KEY
-  );
-  return result;
+    searchId: searchContext.searchId,
+    supplierId: supplier.id,
+    priority: supplier.priority === 'High' ? 1 : 3
+  });
+
+  return job;
 }
 
 export async function runSupplierSearch(payload, settings, { signal } = {}) {
@@ -257,54 +262,48 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
         abortSignal: signal
       });
 
-      const sendResult = await sendEmailToSupplier({
+      const job = await queueEmailForSupplier({
         supplier,
         emailContent,
         settings,
         searchContext: supplierContext
       });
 
-      const messageId =
-        sendResult.headers?.['x-message-id'] ||
-        sendResult.headers?.['X-Message-Id'] ||
-        `sg_${nanoid(8)}`;
-
       await recordEmailSend({
         searchId,
         supplierId: supplier.id,
-        status: 'sent'
+        status: 'queued'
       });
 
       await updateSupplier(searchId, supplier.id, (current) => ({
         ...current,
-        status: 'Email Sent via SendGrid',
+        status: 'Email Queued',
         last_contact: new Date().toISOString(),
-        emails_sent: (current.emails_sent || 0) + 1,
         conversation_history: [
           ...(current.conversation_history || []),
           {
-            direction: 'outbound',
-            subject: emailContent.subject,
-            body: emailContent.body,
-            provider: 'sendgrid',
-            sent_at: new Date().toISOString(),
-            message_id: messageId
+            direction: 'system',
+            subject: 'Email queued for sending',
+            body: `Job ID: ${job.id}`,
+            provider: 'bull-queue',
+            queued_at: new Date().toISOString(),
+            job_id: job.id
           }
         ]
       }));
 
       emailResults.push({
         supplierId: supplier.id,
-        status: 'sent',
-        sendgridMessageId: messageId,
+        status: 'queued',
+        jobId: job.id,
         subject: emailContent.subject
       });
 
       await appendLog(searchId, {
-        message: `Email sent to ${supplier.company_name}`,
+        message: `Email queued for ${supplier.company_name}`,
         context: {
           supplierId: supplier.id,
-          messageId,
+          jobId: job.id,
           subject: emailContent.subject
         }
       });
@@ -354,10 +353,10 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     index += 1;
   }
 
-  const sentCount = emailResults.filter((result) => result.status === 'sent').length;
+  const queuedCount = emailResults.filter((result) => result.status === 'queued').length;
   const completedRecord = await finalizeSearch(searchId, 'completed', {
     metrics: {
-      emailsSent: sentCount,
+      emailsQueued: queuedCount,
       suppliersValidated: suppliers.length
     }
   });
@@ -370,7 +369,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
       summary: {
         searchId,
         suppliersContacted: suppliers.length,
-        emailsSent: sentCount
+        emailsQueued: queuedCount
       }
     },
     settings.apiKeys?.sendgrid || process.env.SENDGRID_API_KEY
