@@ -2,6 +2,7 @@
 import { runSupplierSearch } from '../services/searchService.js';
 import { getSettings } from '../storage/settingsStore.js';
 import { listSearches, getSearch } from '../storage/searchStore.js';
+import { validateRequest, searchSchema } from '../middleware/validation.js';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.get('/:searchId', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', validateRequest(searchSchema), async (req, res, next) => {
   try {
     const settings = await getSettings();
     const result = await runSupplierSearch(req.body, settings, {});

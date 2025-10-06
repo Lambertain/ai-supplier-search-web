@@ -1,6 +1,7 @@
 ﻿import { Router } from 'express';
 import { getSettings, updateSettings } from '../storage/settingsStore.js';
 import { listAvailableModels } from '../services/openaiService.js';
+import { validateRequest, settingsSchema } from '../middleware/validation.js';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.put('/', async (req, res, next) => {
+router.put('/', validateRequest(settingsSchema), async (req, res, next) => {
   try {
     const settings = await updateSettings(req.body || {});
     res.json(presentSettings(settings));
