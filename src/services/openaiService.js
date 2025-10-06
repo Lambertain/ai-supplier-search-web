@@ -1,12 +1,13 @@
 import { stripCodeFences } from './textHelpers.js';
 import { withOpenAIRetry } from '../utils/retryHelper.js';
+import { ERROR_MESSAGES } from '../utils/messages.js';
 
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
 function ensureApiKey(provided) {
   const apiKey = provided || process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error('OpenAI API ключ не налаштований. Додайте його у налаштуваннях або через змінну середовища.');
+    throw new Error(ERROR_MESSAGES.OPENAI_KEY_MISSING);
   }
   return apiKey;
 }

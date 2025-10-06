@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS = {
     introTemplate: '{Вітаю|Добрий день|Шановні представники} {{supplierCompany}},',
     closingTemplate: '{З повагою|Щиро}\\nProcurement Team',
     footerTemplate: 'Цей лист надіслано з нашої автоматизованої платформи постачання. {Якщо лист потрапив до вас помилково|Якщо пропозиція неактуальна}, будь ласка, відповідайте "UNSUBSCRIBE".',
-    recommendations: 'Використовуйте професійний домен, чергуйте теми листів і не надсилайте більше ніж встановлений ліміт на день.'
+    recommendations: 'Use a professional domain, alternate email subjects, and do not exceed the daily limit.'
   },
   compliance: {
     antispamHeaders: {
@@ -49,7 +49,7 @@ export const DEFAULT_SETTINGS = {
   sendgridPolicy: {
     dailyLimit: 120,
     sendIntervalSeconds: 30,
-    recommendations: 'Тримайте щоденний ліміт низьким, робіть перерви між відправками (15-30 секунд), регулярно перевіряйте показники доставлення.'
+    recommendations: 'Keep daily limit low, take breaks between sends (15-30 seconds), regularly check delivery metrics.'
   },
   apiKeys: {
     openai: '',

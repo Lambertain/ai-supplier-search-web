@@ -1,5 +1,6 @@
 import sgMail from '@sendgrid/mail';
 import { withSendGridRetry } from '../utils/retryHelper.js';
+import { ERROR_MESSAGES } from '../utils/messages.js';
 
 let configured = false;
 let cachedKey = '';
@@ -7,7 +8,7 @@ let cachedKey = '';
 function ensureClient(keyFromSettings) {
   const key = keyFromSettings || process.env.SENDGRID_API_KEY;
   if (!key) {
-    throw new Error('SendGrid API ключ не налаштований. Додайте його у налаштуваннях або через змінну середовища.');
+    throw new Error(ERROR_MESSAGES.SENDGRID_KEY_MISSING);
   }
   if (!configured || cachedKey !== key) {
     sgMail.setApiKey(key);

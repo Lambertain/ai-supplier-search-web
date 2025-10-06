@@ -6,6 +6,7 @@ import { validateSearchRequest, isBusinessEmail, normalizeWebsite, sanitizeStrin
 import { renderTemplate } from '../utils/template.js';
 import { renderSpintax } from '../utils/spintax.js';
 import { queueEmail, getDailyEmailStats } from '../queues/emailQueue.js';
+import { ERROR_MESSAGES, LOG_MESSAGES } from '../utils/messages.js';
 import {
   createSearchRecord,
   addSuppliersToSearch,
@@ -129,10 +130,10 @@ async function enforceSendgridPolicy({ settings, searchId }) {
     if (sentToday >= policy.dailyLimit) {
       await appendLog(searchId, {
         level: 'warn',
-        message: `Досягнуто щоденного ліміту ${policy.dailyLimit} листів`,
+        message: LOG_MESSAGES.DAILY_LIMIT_WARNING(policy.dailyLimit, sentToday),
         context: { dailyLimit: policy.dailyLimit, sentToday }
       });
-      throw new Error('Щоденний ліміт відправок вичерпано');
+      throw new Error(ERROR_MESSAGES.DAILY_LIMIT_REACHED);
     }
   }
 
@@ -144,7 +145,7 @@ async function enforceSendgridPolicy({ settings, searchId }) {
       if (waitMs > 0) {
         const waitSeconds = Math.ceil(waitMs / 1000);
         await appendLog(searchId, {
-          message: `Очікування ${waitSeconds} сек перед наступною відправкою`,
+          message: LOG_MESSAGES.RATE_LIMIT_WAIT(waitSeconds),
           context: { waitSeconds }
         });
         await new Promise((resolve) => setTimeout(resolve, waitMs));
@@ -210,7 +211,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     suppliersRequested: settings.searchConfig.maxSuppliers
   });
 
-  await appendLog(searchId, { message: 'Search initialized', context: { searchId, minSuppliers: settings.searchConfig?.minSuppliers, maxSuppliers: settings.searchConfig?.maxSuppliers } });
+  await appendLog(searchId, { message: LOG_MESSAGES.SEARCH_INITIALIZED, context: { searchId, minSuppliers: settings.searchConfig?.minSuppliers, maxSuppliers: settings.searchConfig?.maxSuppliers } });
 
   const searchContext = {
     searchId,
@@ -240,7 +241,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
   const suppliers = validateSuppliers(supplierResponse, { settings, searchId });
   await addSuppliersToSearch(searchId, suppliers);
   await appendLog(searchId, {
-    message: `Validated ${suppliers.length} suppliers`,
+    message: LOG_MESSAGES.SUPPLIERS_VALIDATED(suppliers.length),
     context: { count: suppliers.length }
   });
 
@@ -300,7 +301,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
       });
 
       await appendLog(searchId, {
-        message: `Email queued for ${supplier.company_name}`,
+        message: LOG_MESSAGES.EMAIL_QUEUED(supplier.company_name),
         context: {
           supplierId: supplier.id,
           jobId: job.id,
@@ -338,14 +339,14 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
 
       await appendLog(searchId, {
         level: 'error',
-        message: `Failed to email ${supplier.company_name}`,
+        message: LOG_MESSAGES.EMAIL_FAILED(supplier.company_name),
         context: {
           supplierId: supplier.id,
           error: error.message
         }
       });
 
-      if (error.message.includes('Щоденний ліміт')) {
+      if (error.message.includes('Daily email limit')) {
         break;
       }
     }
@@ -361,7 +362,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     }
   });
 
-  await appendLog(searchId, { message: 'Search completed', context: { searchId } });
+  await appendLog(searchId, { message: LOG_MESSAGES.SEARCH_COMPLETED, context: { searchId } });
 
   await sendSummaryEmail(
     {
@@ -376,7 +377,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
   ).catch((error) => {
     appendLog(searchId, {
       level: 'warn',
-      message: 'Failed to send summary email',
+      message: LOG_MESSAGES.SUMMARY_EMAIL_FAILED,
       context: { error: error.message }
     });
   });
