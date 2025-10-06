@@ -179,7 +179,7 @@ async function loadSettings() {
     setSecretsStatus(settings);
   } catch (error) {
     console.error(error);
-    setStatus(Помилка завантаження: , 'error');
+    setStatus(`Помилка завантаження: ${error.message}`, 'error');
   }
 }
 
@@ -240,7 +240,7 @@ settingsForm.addEventListener('submit', async (event) => {
     populateSettingsForm(updated);
     populatePromptFields(updated.prompts || {});
   } catch (error) {
-    setStatus(Помилка: , 'error');
+    setStatus(`Помилка: ${error.message}`, 'error');
   }
 });
 
