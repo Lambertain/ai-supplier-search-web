@@ -7,6 +7,7 @@ import { renderTemplate } from '../utils/template.js';
 import { renderSpintax } from '../utils/spintax.js';
 import { queueEmail, getDailyEmailStats } from '../queues/emailQueue.js';
 import { ERROR_MESSAGES, LOG_MESSAGES } from '../utils/messages.js';
+import { OPENAI_MODELS, MAX_TOKENS, TEMPERATURE } from '../config/constants.js';
 import {
   createSearchRecord,
   addSuppliersToSearch,
@@ -157,10 +158,10 @@ async function enforceSendgridPolicy({ settings, searchId }) {
 async function generateEmailForSupplier({ supplier, settings, searchContext, abortSignal }) {
   const messages = buildEmailWriterMessages(settings, supplier, searchContext);
   const emailJson = await chatCompletionJson({
-    model: 'gpt-4o-mini',
+    model: OPENAI_MODELS.EMAIL,
     messages,
-    temperature: 0.3,
-    maxTokens: 600,
+    temperature: TEMPERATURE.EMAIL,
+    maxTokens: MAX_TOKENS.EMAIL,
     signal: abortSignal,
     apiKey: settings.apiKeys?.openai || process.env.OPENAI_API_KEY
   });
@@ -230,10 +231,10 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
   });
 
   const supplierResponse = await chatCompletionJson({
-    model: settings.searchConfig.openaiModel,
+    model: settings.searchConfig.openaiModel || OPENAI_MODELS.SEARCH,
     messages: searchMessages,
-    temperature: settings.searchConfig.temperature,
-    maxTokens: 4000,
+    temperature: settings.searchConfig.temperature || TEMPERATURE.SEARCH,
+    maxTokens: MAX_TOKENS.SEARCH,
     signal,
     apiKey: settings.apiKeys?.openai || process.env.OPENAI_API_KEY
   });
