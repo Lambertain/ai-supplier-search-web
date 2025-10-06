@@ -55,17 +55,17 @@ function setStatus(message, type = 'info') {
     error: 'alert',
     success: 'success'
   };
-  statusBox.innerHTML = <div class=""></div>;
+  statusBox.innerHTML = `<div class="${classes[type]}">${message}</div>`;
 }
 
 function setSecretsStatus(settings) {
   if (!secretsStatus) return;
   const openai = settings.secrets?.openai ? 'Налаштовано' : 'Відсутній';
   const sendgrid = settings.secrets?.sendgrid ? 'Налаштовано' : 'Відсутній';
-  secretsStatus.innerHTML = 
-    <p><strong>OpenAI API Key:</strong> </p>
-    <p><strong>SendGrid API Key:</strong> </p>
-  ;
+  secretsStatus.innerHTML = `
+    <p><strong>OpenAI API Key:</strong> ${openai}</p>
+    <p><strong>SendGrid API Key:</strong> ${sendgrid}</p>
+  `;
 }
 
 function updateSendgridNote(settings) {
@@ -74,9 +74,9 @@ function updateSendgridNote(settings) {
   const daily = policy.dailyLimit ?? '—';
   const interval = policy.sendIntervalSeconds ?? '—';
   const hint = policy.recommendations || DEFAULT_SENDGRID_RECOMMENDATIONS;
-  sendgridNote.innerHTML = 
-    <strong>Рекомендації SendGrid:</strong> не більше  листів на день, інтервал  сек між відправками. 
-  ;
+  sendgridNote.innerHTML = `
+    <strong>Рекомендації SendGrid:</strong> не більше ${daily} листів на день, інтервал ${interval} сек між відправками. ${hint}
+  `;
 }
 
 function populateSettingsForm(settings) {
