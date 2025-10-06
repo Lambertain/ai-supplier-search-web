@@ -1,4 +1,5 @@
-﻿import sgMail from '@sendgrid/mail';
+import sgMail from '@sendgrid/mail';
+import { withSendGridRetry } from '../utils/retryHelper.js';
 
 let configured = false;
 let cachedKey = '';
@@ -98,7 +99,7 @@ export function prepareSendGridEmail({ supplier, emailContent, settings, searchC
   };
 }
 
-export async function sendTransactionalEmail(prepared, apiKey) {
+export const sendTransactionalEmail = withSendGridRetry(async function sendTransactionalEmailInternal(prepared, apiKey) {
   const client = ensureClient(apiKey);
   const [response] = await client.send(prepared.payload);
   return {
@@ -107,9 +108,9 @@ export async function sendTransactionalEmail(prepared, apiKey) {
     body: response.body,
     metadata: prepared.metadata
   };
-}
+});
 
-export async function sendSummaryEmail({ settings, summary }, apiKey) {
+export const sendSummaryEmail = withSendGridRetry(async function sendSummaryEmailInternal({ settings, summary }, apiKey) {
   if (!settings.notifications?.enabled || !settings.notifications?.recipients?.length) {
     return null;
   }
@@ -138,4 +139,4 @@ export async function sendSummaryEmail({ settings, summary }, apiKey) {
     status: response.statusCode,
     headers: response.headers
   };
-}
+});

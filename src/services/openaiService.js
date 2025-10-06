@@ -1,4 +1,5 @@
-﻿import { stripCodeFences } from './textHelpers.js';
+import { stripCodeFences } from './textHelpers.js';
+import { withOpenAIRetry } from '../utils/retryHelper.js';
 
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
@@ -32,7 +33,7 @@ async function callOpenAI(body, signal, apiKeyOverride) {
   return data;
 }
 
-export async function chatCompletionJson({
+export const chatCompletionJson = withOpenAIRetry(async function chatCompletionJsonInternal({
   model,
   messages,
   temperature = 0.1,
@@ -62,9 +63,9 @@ export async function chatCompletionJson({
     err.raw = normalized;
     throw err;
   }
-}
+});
 
-export async function chatCompletionText({
+export const chatCompletionText = withOpenAIRetry(async function chatCompletionTextInternal({
   model,
   messages,
   temperature = 0.3,
@@ -85,4 +86,4 @@ export async function chatCompletionText({
     throw new Error('OpenAI response did not contain message content');
   }
   return stripCodeFences(content);
-}
+});
