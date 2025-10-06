@@ -1,0 +1,231 @@
+﻿:root {
+  --primary: #1f7ae0;
+  --secondary: #0f3d75;
+  --bg: #f4f7fb;
+  --surface: #ffffff;
+  --border: #d8e1f0;
+  --text: #1b2735;
+  --muted: #64748b;
+  --success: #14804a;
+  --error: #d61f4b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+nav a {
+  margin-right: 16px;
+  font-weight: 600;
+}
+
+main {
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 0 24px 48px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 18px 35px rgba(15, 61, 117, 0.08);
+  margin-bottom: 24px;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--secondary);
+}
+
+input[type="text"],
+textarea,
+select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fefefe;
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+
+textarea {
+  min-height: 140px;
+}
+
+button {
+  background: linear-gradient(135deg, var(--primary), #2ba6ff);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(31, 122, 224, 0.25);
+}
+
+button:disabled {
+  background: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #e0edff;
+  color: var(--primary);
+  margin-right: 8px;
+}
+
+.status-sent { background: #dcf7e7; color: var(--success); }
+.status-failed { background: #fde2e7; color: var(--error); }
+.status-pending { background: #ffe1b3; color: #b45b00; }
+
+pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 16px;
+  border-radius: 12px;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.flex {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.flex .card {
+  flex: 1 1 280px;
+}
+
+.notice {
+  background: #e0f2fe;
+  border-left: 4px solid var(--primary);
+  padding: 16px;
+  border-radius: 12px;
+  color: #0f3d75;
+  margin-bottom: 16px;
+}
+
+.alert {
+  background: #fee2e2;
+  border-left: 4px solid var(--error);
+  padding: 16px;
+  border-radius: 12px;
+  color: #861027;
+  margin-bottom: 16px;
+}
+
+.success {
+  background: #dcfce7;
+  border-left: 4px solid var(--success);
+  padding: 16px;
+  border-radius: 12px;
+  color: #166534;
+  margin-bottom: 16px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid #dbeafe;
+  border-top: 3px solid var(--primary);
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+#search-form > .flex {
+  align-items: stretch !important;
+  gap: 16px;
+}
+#search-form > .flex > div {
+  flex: 1 1 50%;
+}
+#search-form > .flex input[type='number'] {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fefefe;
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+@media (max-width: 640px) {
+  #search-form > .flex {
+    flex-direction: column;
+  }
+}
+
+}\n
+}\n.settings-block {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n}\n.section-hint {\n  margin-top: -4px;\n  margin-bottom: 12px;\n  color: var(--muted);\n  font-size: 14px;\n}\n.sub-block-title {\n  margin-bottom: 4px;\n}\n.sub-block-hint {\n  margin-top: 0;\n  margin-bottom: 12px;\n  color: var(--muted);\n  font-size: 13px;\n}\n.form-actions button {\n  margin-top: 8px;\n}\n
+\n.double-input {\n  display: flex;\n  gap: 16px;\n}\n.double-input .input-group {\n  flex: 1 1 50%;\n}\n.double-input input[type='number'] {\n  width: 100%;\n  padding: 12px;\n  border-radius: 12px;\n  border: 1px solid var(--border);\n  background: #fefefe;\n  margin-bottom: 16px;\n  font-size: 15px;\n}\n@media (max-width: 640px) {\n  .double-input {\n    flex-direction: column;\n  }\n}\n

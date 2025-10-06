@@ -1,0 +1,60 @@
+﻿<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Результати пошуку постачальників</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>AI Пошук постачальників</strong>
+      </div>
+      <nav>
+        <a href="/">Пошук</a>
+        <a href="/results.html">Результати</a>
+        <a href="/settings.html">Налаштування</a>
+      </nav>
+    </header>
+    <main>
+      <section class="card">
+        <h2>Історія постачальників</h2>
+        <div class="flex" style="align-items: flex-end; gap: 16px;">
+          <div style="flex: 1 1 240px;">
+            <label for="searchFilter">Пошук (ID)</label>
+            <select id="searchFilter">
+              <option value="">Всі запуски</option>
+            </select>
+          </div>
+          <div>
+            <button id="refreshBtn">Оновити</button>
+          </div>
+        </div>
+        <div id="results-status" style="margin-top: 16px;"></div>
+        <table class="table" id="results-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>ID пошуку</th>
+              <th>Компанія</th>
+              <th>Email</th>
+              <th>Країна</th>
+              <th>Статус</th>
+              <th>Створено</th>
+              <th>Останній контакт</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="results-empty" class="notice" style="display:none;">Дані ще не доступні. Запустіть пошук або оновіть фільтр.</div>
+      </section>
+
+      <section class="card">
+        <h2>Рекомендації з відправки</h2>
+        <div id="sendgrid-guidance" class="notice">Завантаження рекомендацій…</div>
+      </section>
+    </main>
+    <script src="/results.js" type="module"></script>
+  </body>
+</html>

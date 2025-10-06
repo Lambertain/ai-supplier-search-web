@@ -1,0 +1,141 @@
+﻿<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Налаштування пошуку постачальників</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>AI Пошук постачальників</strong>
+      </div>
+      <nav>
+        <a href="/">Пошук</a>
+        <a href="/results.html">Результати</a>
+        <a href="/settings.html">Налаштування</a>
+      </nav>
+    </header>
+    <main>
+      <div id="settings-status"></div>
+      <form id="settings-form">
+        <section class="card settings-block">
+          <h2>AI та генерація</h2>
+          <p class="section-hint">Моделі та промпти, які використовує агент для пошуку постачальників і підготовки відповідей.</p>
+
+          <label for="openaiModel">Модель OpenAI</label>
+          <input type="text" id="openaiModel" name="searchConfig.openaiModel" />
+
+          <label for="temperature">Температура моделі</label>
+          <input type="text" id="temperature" name="searchConfig.temperature" />
+
+          <label for="autoReply">Автоматична відповідь AI</label>
+          <select id="autoReply" name="automation.autoReply">
+            <option value="true">Увімкнено</option>
+            <option value="false">Вимкнено</option>
+          </select>
+
+          <label for="autoReplyDelay">Затримка авто відповіді (хв)</label>
+          <input type="text" id="autoReplyDelay" name="automation.autoReplyDelayMinutes" />
+
+          <label for="openaiKey">OpenAI API Key</label>
+          <input type="text" id="openaiKey" name="apiKeys.openai" placeholder="sk-..." />
+
+          <h3 class="sub-block-title">Промпти</h3>
+          <p class="sub-block-hint">Кнопка «Шаблон» повертає стандартний текст лише для обраного поля.</p>
+
+          <label for="supplierSearchSystem">Системний промпт пошуку
+            <button type="button" class="template-btn" data-template="supplierSearchSystem">Шаблон</button>
+          </label>
+          <textarea id="supplierSearchSystem" name="prompts.supplierSearchSystem"></textarea>
+
+          <label for="supplierSearchUser">Шаблон користувацького промпту пошуку
+            <button type="button" class="template-btn" data-template="supplierSearchUser">Шаблон</button>
+          </label>
+          <textarea id="supplierSearchUser" name="prompts.supplierSearchUser"></textarea>
+
+          <label for="emailWriterSystem">Системний промпт листа
+            <button type="button" class="template-btn" data-template="emailWriterSystem">Шаблон</button>
+          </label>
+          <textarea id="emailWriterSystem" name="prompts.emailWriterSystem"></textarea>
+
+          <label for="emailWriterUser">Шаблон листа
+            <button type="button" class="template-btn" data-template="emailWriterUser">Шаблон</button>
+          </label>
+          <textarea id="emailWriterUser" name="prompts.emailWriterUser"></textarea>
+
+          <label for="responseSystem">Системний промпт відповіді
+            <button type="button" class="template-btn" data-template="responseSystem">Шаблон</button>
+          </label>
+          <textarea id="responseSystem" name="prompts.responseSystem"></textarea>
+
+          <label for="responseUser">Шаблон відповіді
+            <button type="button" class="template-btn" data-template="responseUser">Шаблон</button>
+          </label>
+          <textarea id="responseUser" name="prompts.responseUser"></textarea>
+        </section>
+
+        <section class="card settings-block">
+          <h2>Листи та SendGrid</h2>
+          <p class="section-hint">Параметри відправника, шаблони листів та обмеження для SendGrid.</p>
+
+          <label for="fromEmail">Відправник (email)</label>
+          <input type="text" id="fromEmail" name="emailConfig.fromEmail" />
+
+          <label for="fromName">Імʼя відправника</label>
+          <input type="text" id="fromName" name="emailConfig.fromName" />
+
+          <label for="replyTo">Адреса для відповідей</label>
+          <input type="text" id="replyTo" name="emailConfig.replyTo" />
+
+          <label for="notificationsEnabled">Підсумкові листи</label>
+          <select id="notificationsEnabled" name="notifications.enabled">
+            <option value="true">Увімкнено</option>
+            <option value="false">Вимкнено</option>
+          </select>
+
+          <label for="notificationRecipients">Одержувачі (через кому)</label>
+          <input type="text" id="notificationRecipients" name="notifications.recipients" placeholder="productmanager@company.com" />
+
+          <label for="subjectTemplate">Тема листа
+            <button type="button" class="template-btn" data-template="subjectTemplate">Шаблон</button>
+          </label>
+          <input type="text" id="subjectTemplate" name="emailTemplates.subjectTemplate" placeholder="{Вітаю|Співпраця} щодо {{productDescription}}" />
+
+          <label for="emailIntroTemplate">Вступ листа
+            <button type="button" class="template-btn" data-template="introTemplate">Шаблон</button>
+          </label>
+          <textarea id="emailIntroTemplate" name="emailTemplates.introTemplate"></textarea>
+
+          <label for="emailClosingTemplate">Завершення листа
+            <button type="button" class="template-btn" data-template="closingTemplate">Шаблон</button>
+          </label>
+          <textarea id="emailClosingTemplate" name="emailTemplates.closingTemplate"></textarea>
+
+          <label for="emailFooterTemplate">Футер
+            <button type="button" class="template-btn" data-template="footerTemplate">Шаблон</button>
+          </label>
+          <textarea id="emailFooterTemplate" name="emailTemplates.footerTemplate"></textarea>
+
+          <label for="dailyLimit">Максимум листів на день</label>
+          <input type="text" id="dailyLimit" name="sendgridPolicy.dailyLimit" />
+
+          <label for="sendInterval">Інтервал між листами (сек)</label>
+          <input type="text" id="sendInterval" name="sendgridPolicy.sendIntervalSeconds" />
+
+          <div id="sendgridRecommendationsNote" class="notice"></div>
+
+          <label for="sendgridKey">SendGrid API Key</label>
+          <input type="text" id="sendgridKey" name="apiKeys.sendgrid" placeholder="SG...." />
+        </section>
+
+        <section class="card form-actions">
+          <div id="secrets-status" class="notice">Перевірка статусу ключів…</div>
+          <button type="submit">Зберегти налаштування</button>
+        </section>
+      </form>
+    </main>
+    <script src="/settings.js" type="module"></script>
+  </body>
+</html>

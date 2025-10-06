@@ -1,0 +1,73 @@
+﻿<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Пошук постачальників</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>AI Пошук постачальників</strong>
+      </div>
+      <nav>
+        <a href="/">Пошук</a>
+        <a href="/results.html">Результати</a>
+        <a href="/settings.html">Налаштування</a>
+      </nav>
+    </header>
+    <main>
+      <section class="card">
+        <h2>Запустити новий пошук</h2>
+        <div class="notice">
+          Опишіть товар і побажання, виберіть бажану кількість постачальників – агент знайде перевірених виробників, підготує листи через SendGrid та збереже результати.
+        </div>
+        <form id="search-form">
+          <label>Кількість постачальників</label>
+          <div class="double-input">
+            <div class="input-group">
+              <input id="min_suppliers" name="min_suppliers" type="number" min="1" max="50" placeholder="Мінімум" />
+            </div>
+            <div class="input-group">
+              <input id="max_suppliers" name="max_suppliers" type="number" min="1" max="50" placeholder="Максимум" />
+            </div>
+          </div>
+
+          <label for="product_description">Опис товару</label>
+          <textarea id="product_description" name="product_description" minlength="10" required placeholder="Приклад: Керамічні горнятка з матовим покриттям"></textarea>
+
+          <label for="quantity">Бажана кількість</label>
+          <input id="quantity" name="quantity" type="text" placeholder="наприклад, 10 000 шт. на місяць" />
+
+          <label for="target_price">Цільова ціна</label>
+          <input id="target_price" name="target_price" type="text" placeholder="наприклад, $2.50 за штуку" />
+
+          <label for="additional_requirements">Додаткові вимоги</label>
+          <textarea id="additional_requirements" name="additional_requirements" placeholder="Сертифікації, пакування, умови поставки тощо"></textarea>
+
+          <button type="submit">Розпочати пошук</button>
+        </form>
+        <div id="search-status"></div>
+      </section>
+
+      <section class="card" id="latest-result" style="display:none;">
+        <h2>Результат останнього запуску</h2>
+        <div id="latest-summary"></div>
+        <h3>Статус відправки листів</h3>
+        <table class="table" id="results-table">
+          <thead>
+            <tr>
+              <th>ID постачальника</th>
+              <th>Статус</th>
+              <th>Тема</th>
+              <th>ID повідомлення</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </main>
+    <script src="/search.js" type="module"></script>
+  </body>
+</html>
