@@ -24,8 +24,12 @@
           <h2>AI та генерація</h2>
           <p class="section-hint">Моделі та промпти, які використовує агент для пошуку постачальників і підготовки відповідей.</p>
 
-          <label for="openaiModel">Модель OpenAI</label>
-          <input type="text" id="openaiModel" name="searchConfig.openaiModel" />
+          <label for="openaiModel">Модель OpenAI
+            <button type="button" id="loadModels" class="template-btn">Оновити список</button>
+          </label>
+          <select id="openaiModel" name="searchConfig.openaiModel">
+            <option value="">Завантаження...</option>
+          </select>
 
           <label for="temperature">Температура моделі</label>
           <input type="text" id="temperature" name="searchConfig.temperature" />

@@ -80,7 +80,16 @@ function updateSendgridNote(settings) {
 }
 
 function populateSettingsForm(settings) {
-  settingsForm.querySelector('#openaiModel').value = settings.searchConfig?.openaiModel ?? '';
+  const modelSelect = settingsForm.querySelector('#openaiModel');
+  const currentModel = settings.searchConfig?.openaiModel ?? '';
+
+  // If models not loaded yet, set value directly
+  if (modelSelect.options.length <= 1) {
+    const option = new Option(currentModel || 'Завантаження...', currentModel);
+    modelSelect.add(option);
+  }
+  modelSelect.value = currentModel;
+
   settingsForm.querySelector('#temperature').value = settings.searchConfig?.temperature ?? '';
   settingsForm.querySelector('#autoReply').value = String(Boolean(settings.automation?.autoReply));
   settingsForm.querySelector('#autoReplyDelay').value = settings.automation?.autoReplyDelayMinutes ?? '';
@@ -221,4 +230,51 @@ document.querySelectorAll('.template-btn').forEach((button) => {
   });
 });
 
+async function loadOpenAIModels() {
+  const modelSelect = document.querySelector('#openaiModel');
+  const currentValue = modelSelect.value;
+
+  try {
+    modelSelect.disabled = true;
+    const response = await fetch('/api/settings/openai-models');
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load models');
+    }
+
+    // Clear and populate select
+    modelSelect.innerHTML = '';
+
+    // Add models
+    data.models.forEach(model => {
+      const option = new Option(model.id, model.id);
+      modelSelect.add(option);
+    });
+
+    // Restore selection or select first
+    if (currentValue && data.models.find(m => m.id === currentValue)) {
+      modelSelect.value = currentValue;
+    } else if (data.models.length > 0) {
+      modelSelect.value = data.models[0].id;
+    }
+
+    setStatus('Список моделей оновлено', 'success');
+  } catch (error) {
+    setStatus(`Помилка завантаження моделей: ${error.message}`, 'error');
+    // Restore previous value on error
+    if (currentValue) {
+      modelSelect.innerHTML = '';
+      const option = new Option(currentValue, currentValue);
+      modelSelect.add(option);
+      modelSelect.value = currentValue;
+    }
+  } finally {
+    modelSelect.disabled = false;
+  }
+}
+
+document.querySelector('#loadModels').addEventListener('click', loadOpenAIModels);
+
 await loadSettings();
+await loadOpenAIModels();

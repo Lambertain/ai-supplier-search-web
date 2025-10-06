@@ -88,3 +88,33 @@ export const chatCompletionText = withOpenAIRetry(async function chatCompletionT
   }
   return stripCodeFences(content);
 });
+
+export async function listAvailableModels(apiKeyOverride) {
+  const apiKey = ensureApiKey(apiKeyOverride);
+  const response = await fetch('https://api.openai.com/v1/models', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`
+    }
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    const err = new Error(data.error?.message || 'Failed to fetch OpenAI models');
+    err.status = response.status;
+    err.payload = data;
+    throw err;
+  }
+
+  // Filter to only chat completion models (gpt-* models)
+  const chatModels = data.data
+    .filter(model => model.id.startsWith('gpt-'))
+    .map(model => ({
+      id: model.id,
+      created: model.created,
+      owned_by: model.owned_by
+    }))
+    .sort((a, b) => b.created - a.created); // Sort by newest first
+
+  return chatModels;
+}

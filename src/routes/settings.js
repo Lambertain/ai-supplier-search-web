@@ -1,5 +1,6 @@
 ﻿import { Router } from 'express';
 import { getSettings, updateSettings } from '../storage/settingsStore.js';
+import { listAvailableModels } from '../services/openaiService.js';
 
 const router = Router();
 
@@ -30,6 +31,20 @@ router.put('/', async (req, res, next) => {
     res.json(presentSettings(settings));
   } catch (error) {
     next(error);
+  }
+});
+
+router.get('/openai-models', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    const apiKey = settings.apiKeys?.openai || process.env.OPENAI_API_KEY;
+    const models = await listAvailableModels(apiKey);
+    res.json({ success: true, models });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
