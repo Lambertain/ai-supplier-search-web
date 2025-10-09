@@ -8,6 +8,8 @@ import { renderSpintax } from '../utils/spintax.js';
 import { queueEmail, getDailyEmailStats } from '../queues/emailQueue.js';
 import { ERROR_MESSAGES, LOG_MESSAGES } from '../utils/messages.js';
 import { OPENAI_MODELS, MAX_TOKENS, TEMPERATURE } from '../config/constants.js';
+import { getLanguageForCountry } from '../utils/languageMap.js';
+import { recordSearch, recordEmail } from '../utils/metrics.js';
 import {
   createSearchRecord,
   addSuppliersToSearch,
@@ -156,7 +158,10 @@ async function enforceSendgridPolicy({ settings, searchId }) {
 }
 
 async function generateEmailForSupplier({ supplier, settings, searchContext, abortSignal }) {
-  const messages = buildEmailWriterMessages(settings, supplier, searchContext);
+  // Determine language based on supplier's country
+  const language = getLanguageForCountry(supplier.country);
+
+  const messages = buildEmailWriterMessages(settings, supplier, searchContext, language);
   const emailJson = await chatCompletionJson({
     model: OPENAI_MODELS.EMAIL,
     messages,
@@ -168,7 +173,14 @@ async function generateEmailForSupplier({ supplier, settings, searchContext, abo
   if (!emailJson.subject || !emailJson.body) {
     throw new Error('Email writer prompt did not return subject/body');
   }
-  return composeEmailContent({ emailJson, settings, supplier, searchContext });
+
+  const emailContent = composeEmailContent({ emailJson, settings, supplier, searchContext });
+
+  // Attach language to email content for tracking
+  return {
+    ...emailContent,
+    language
+  };
 }
 
 async function queueEmailForSupplier({ supplier, emailContent, settings, searchContext }) {
@@ -274,8 +286,12 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
       await recordEmailSend({
         searchId,
         supplierId: supplier.id,
-        status: 'queued'
+        status: 'queued',
+        language: emailContent.language
       });
+
+      // Record email queued in metrics
+      recordEmail('queued');
 
       await updateSupplier(searchId, supplier.id, (current) => ({
         ...current,
@@ -314,7 +330,8 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
         searchId,
         supplierId: supplier.id,
         status: 'failed',
-        error: error.message
+        error: error.message,
+        language: 'en' // Default to English for failed emails
       });
 
       await updateSupplier(searchId, supplier.id, (current) => ({
@@ -362,6 +379,9 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
       suppliersValidated: suppliers.length
     }
   });
+
+  // Record search completion in metrics
+  recordSearch('completed');
 
   await appendLog(searchId, { message: LOG_MESSAGES.SEARCH_COMPLETED, context: { searchId } });
 

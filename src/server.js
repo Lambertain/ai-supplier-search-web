@@ -3,6 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { runMigrations } from './db/migrations.js';
+import { getSystemHealth } from './utils/health.js';
+import { getMetrics, recordRequest } from './utils/metrics.js';
 
 import searchRoutes from './routes/search.js';
 import settingsRoutes from './routes/settings.js';
@@ -21,8 +23,42 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+// Metrics middleware - track all requests
+app.use((req, res, next) => {
+  const originalSend = res.send;
+  res.send = function (data) {
+    recordRequest(req.path, res.statusCode);
+    return originalSend.call(this, data);
+  };
+  next();
+});
+
+// Health check endpoint - checks DB, Redis, and system status
+app.get('/api/health', async (req, res) => {
+  try {
+    const health = await getSystemHealth();
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Metrics endpoint - application performance metrics
+app.get('/api/metrics', async (req, res) => {
+  try {
+    const metrics = await getMetrics();
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to retrieve metrics',
+      message: error.message
+    });
+  }
 });
 
 app.use('/api/search', searchRoutes);

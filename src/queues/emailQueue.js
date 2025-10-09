@@ -1,6 +1,7 @@
 import Queue from 'bull';
 import { sendTransactionalEmail } from '../services/sendgridService.js';
 import { updateSupplier } from '../storage/searchStore.js';
+import { recordEmail } from '../utils/metrics.js';
 
 // Email sending limits to avoid spam filters
 const EMAIL_LIMITS = {
@@ -110,6 +111,9 @@ emailQueue.process(async (job) => {
       ]
     }));
 
+    // Record successful email send in metrics
+    recordEmail('sent');
+
     return {
       success: true,
       supplierId,
@@ -125,6 +129,9 @@ emailQueue.process(async (job) => {
       status: 'Email Failed',
       notes: [current.notes, `Send failed: ${error.message}`].filter(Boolean).join('\n')
     }));
+
+    // Record failed email in metrics
+    recordEmail('failed');
 
     throw error; // Let Bull handle retry logic
   }
