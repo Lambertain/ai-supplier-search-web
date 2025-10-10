@@ -1,5 +1,6 @@
 import { query } from '../db/client.js';
 import { getQueueHealth, getDailyEmailStats } from '../queues/emailQueue.js';
+import logger from './logger.js';
 
 /**
  * In-memory metrics storage
@@ -84,7 +85,7 @@ async function getDatabaseMetrics() {
       totalEmailsSent: parseInt(emailsSentResult.rows[0]?.count || 0)
     };
   } catch (error) {
-    console.error('[Metrics] Error fetching database metrics:', error.message);
+    logger.error('[Metrics] Error fetching database metrics', { error: error.message, stack: error.stack });
     return {
       totalSearches: 0,
       totalSuppliers: 0,

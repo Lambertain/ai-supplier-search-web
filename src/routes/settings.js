@@ -8,8 +8,12 @@ const router = Router();
 function presentSettings(settings) {
   const openaiKeySet = Boolean(settings.apiKeys?.openai || process.env.OPENAI_API_KEY);
   const sendgridKeySet = Boolean(settings.apiKeys?.sendgrid || process.env.SENDGRID_API_KEY);
+
+  // Security: Remove sensitive API keys from response
+  const { apiKeys, ...safeSettings } = settings;
+
   return {
-    ...settings,
+    ...safeSettings,
     secrets: {
       openai: openaiKeySet,
       sendgrid: sendgridKeySet

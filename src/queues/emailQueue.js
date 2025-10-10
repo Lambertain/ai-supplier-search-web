@@ -2,6 +2,7 @@ import Queue from 'bull';
 import { sendTransactionalEmail } from '../services/sendgridService.js';
 import { updateSupplier } from '../storage/searchStore.js';
 import { recordEmail } from '../utils/metrics.js';
+import logger from '../utils/logger.js';
 
 // Email sending limits to avoid spam filters
 const EMAIL_LIMITS = {
@@ -84,13 +85,23 @@ export const emailQueue = new Queue('email-sending', getRedisConfig(), {
 emailQueue.process(async (job) => {
   const { prepared, searchId, supplierId } = job.data;
 
-  console.log(`[EmailQueue] Processing email job for supplier ${supplierId} (search: ${searchId})`);
+  logger.info('Processing email job', {
+    jobId: job.id,
+    supplierId,
+    searchId,
+    recipient: prepared.metadata.supplierInfo.email
+  });
 
   try {
     // Send email via SendGrid
     const result = await sendTransactionalEmail(prepared, process.env.SENDGRID_API_KEY);
 
-    console.log(`[EmailQueue] Email sent successfully to ${prepared.metadata.supplierInfo.email}`);
+    logger.info('Email sent successfully', {
+      jobId: job.id,
+      supplierId,
+      recipient: prepared.metadata.supplierInfo.email,
+      status: result.status
+    });
 
     // Update supplier status to 'Email Sent via SendGrid'
     await updateSupplier(searchId, supplierId, (current) => ({
@@ -121,7 +132,12 @@ emailQueue.process(async (job) => {
       sentAt: new Date().toISOString()
     };
   } catch (error) {
-    console.error(`[EmailQueue] Failed to send email to supplier ${supplierId}:`, error.message);
+    logger.error('Failed to send email', {
+      jobId: job.id,
+      supplierId,
+      error: error.message,
+      stack: error.stack
+    });
 
     // Update supplier status to 'Email Failed'
     await updateSupplier(searchId, supplierId, (current) => ({
@@ -141,15 +157,24 @@ emailQueue.process(async (job) => {
  * Event handlers for monitoring
  */
 emailQueue.on('completed', (job, result) => {
-  console.log(`[EmailQueue] Job ${job.id} completed:`, result);
+  logger.debug('Email queue job completed', {
+    jobId: job.id,
+    result
+  });
 });
 
 emailQueue.on('failed', (job, error) => {
-  console.error(`[EmailQueue] Job ${job.id} failed after ${job.attemptsMade} attempts:`, error.message);
+  logger.error('Email queue job failed', {
+    jobId: job.id,
+    attemptsMade: job.attemptsMade,
+    error: error.message
+  });
 });
 
 emailQueue.on('stalled', (job) => {
-  console.warn(`[EmailQueue] Job ${job.id} has stalled and will be retried`);
+  logger.warn('Email queue job stalled', {
+    jobId: job.id
+  });
 });
 
 /**
@@ -202,7 +227,12 @@ export async function queueEmail(emailData) {
     priority: emailData.priority || 3  // Default medium priority
   });
 
-  console.log(`[EmailQueue] Email queued for supplier ${emailData.supplierId} (job: ${job.id})`);
+  logger.info('Email queued for sending', {
+    jobId: job.id,
+    supplierId: emailData.supplierId,
+    searchId: emailData.searchId,
+    priority: emailData.priority || 3
+  });
 
   return job;
 }
@@ -242,6 +272,6 @@ export async function getQueueHealth() {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('[EmailQueue] Shutting down gracefully...');
+  logger.info('Email queue shutting down gracefully');
   await emailQueue.close();
 });

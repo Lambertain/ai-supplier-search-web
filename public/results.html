@@ -19,35 +19,39 @@
     </header>
     <main>
       <section class="card">
-        <h2>Історія постачальників</h2>
-        <div class="flex" style="align-items: flex-end; gap: 16px;">
-          <div style="flex: 1 1 240px;">
-            <label for="searchFilter">Пошук (ID)</label>
-            <select id="searchFilter">
-              <option value="">Всі запуски</option>
-            </select>
-          </div>
+        <div class="history-header">
+          <h2>Історія пошуку</h2>
+          <button id="bulk-delete-btn" class="btn-danger" style="display:none;">
+            Видалити вибрані (<span id="selected-count">0</span>)
+          </button>
+        </div>
+        <div class="flex" style="align-items: flex-end; gap: 16px; margin-top: 16px;">
           <div>
             <button id="refreshBtn">Оновити</button>
           </div>
         </div>
         <div id="results-status" style="margin-top: 16px;"></div>
-        <table class="table" id="results-table" style="display:none;">
+        <table class="table history-table" id="history-table" style="display:none; margin-top: 16px;">
           <thead>
             <tr>
-              <th>ID пошуку</th>
-              <th>Компанія</th>
+              <th style="width: 40px;"><input type="checkbox" id="select-all" title="Вибрати всі"></th>
+              <th>ID Пошуку</th>
+              <th>Дата запуску</th>
+              <th>Запит</th>
+              <th>Знайдено</th>
+              <th>Назва компанії</th>
               <th>Email</th>
-              <th>Країна</th>
-              <th>Статус</th>
-              <th>Створено</th>
-              <th>Останній контакт</th>
-              <th></th>
+              <th>Статус листа</th>
+              <th>Дата відправки</th>
+              <th>Дата відповіді</th>
+              <th>Текст відповіді</th>
+              <th>Мова</th>
             </tr>
           </thead>
-          <tbody></tbody>
+          <tbody id="history-tbody">
+          </tbody>
         </table>
-        <div id="results-empty" class="notice" style="display:none;">Дані ще не доступні. Запустіть пошук або оновіть фільтр.</div>
+        <div id="results-empty" class="notice" style="display:none;">Дані ще не доступні. Запустіть пошук.</div>
       </section>
 
       <section class="card">
@@ -55,6 +59,20 @@
         <div id="sendgrid-guidance" class="notice">Завантаження рекомендацій…</div>
       </section>
     </main>
+
+    <div id="delete-modal" class="modal" style="display:none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <h3>Підтвердження видалення</h3>
+        <p>Ви впевнені, що хочете видалити <strong><span id="delete-count"></span></strong> постачальників?</p>
+        <p class="notice">Ця дія не може бути скасована.</p>
+        <div class="modal-buttons">
+          <button id="confirm-delete-btn" class="btn-danger">Видалити</button>
+          <button id="cancel-delete-btn" class="btn-secondary">Скасувати</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/results.js" type="module"></script>
   </body>
 </html>

@@ -228,4 +228,192 @@ pre {
 
 }\n
 }\n.settings-block {\n  display: flex;\n  flex-direction: column;\n  gap: 16px;\n}\n.section-hint {\n  margin-top: -4px;\n  margin-bottom: 12px;\n  color: var(--muted);\n  font-size: 14px;\n}\n.sub-block-title {\n  margin-bottom: 4px;\n}\n.sub-block-hint {\n  margin-top: 0;\n  margin-bottom: 12px;\n  color: var(--muted);\n  font-size: 13px;\n}\n.form-actions button {\n  margin-top: 8px;\n}\n
-\n.double-input {\n  display: flex;\n  gap: 16px;\n  margin-bottom: 16px;\n}\n.double-input .input-group {\n  flex: 1 1 50%;\n}\n.double-input .sub-label {\n  font-size: 13px;\n  font-weight: 500;\n  color: var(--muted);\n  margin-bottom: 6px;\n}\n.double-input input[type='number'] {\n  width: 100%;\n  padding: 12px;\n  border-radius: 12px;\n  border: 1px solid var(--border);\n  background: #fefefe;\n  margin-bottom: 0;\n  font-size: 15px;\n}\n@media (max-width: 640px) {\n  .double-input {\n    flex-direction: column;\n  }\n}\n
+\n.double-input {\n  display: flex;\n  gap: 12px;\n  margin-bottom: 16px;\n}\n.double-input input[type='number'] {\n  flex: 1;\n  padding: 12px;\n  border-radius: 12px;\n  border: 1px solid var(--border);\n  background: #fefefe;\n  margin-bottom: 0;\n  font-size: 15px;\n}\n@media (max-width: 640px) {\n  .double-input {\n    flex-direction: column;\n  }\n  .double-input input[type='number'] {\n    margin-bottom: 16px;\n  }\n  .double-input input[type='number']:last-child {\n    margin-bottom: 0;\n  }\n}\n
+
+/* History header with delete button */
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.history-header h2 {
+  margin: 0;
+}
+
+/* Danger button for delete */
+.btn-danger {
+  background: linear-gradient(135deg, var(--error), #ff2f5f);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(214, 31, 75, 0.3);
+}
+
+.btn-secondary {
+  background: var(--border);
+  color: var(--text);
+  border: none;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: #cbd5e1;
+}
+
+/* Badge styles for email status */
+.badge-info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-success {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.badge-danger {
+  background: #fee2e2;
+  color: var(--error);
+}
+
+.badge-purple {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+/* History table specific styles */
+.history-table {
+  font-size: 14px;
+}
+
+.history-table th {
+  background: var(--bg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.history-table td {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-table input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+/* Language flag display */
+.language-flag {
+  display: inline-block;
+  padding: 4px 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* Reply preview */
+.reply-preview {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.reply-snippet {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.btn-show-full {
+  background: none;
+  border: none;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  font-weight: 500;
+}
+
+.btn-show-full:hover {
+  transform: none;
+  box-shadow: none;
+  color: var(--secondary);
+}
+
+/* Modal overlay */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  position: relative;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  color: var(--secondary);
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .history-table {
+    font-size: 12px;
+  }
+
+  .history-table th,
+  .history-table td {
+    padding: 8px;
+  }
+
+  .modal-content {
+    padding: 24px;
+  }
+}

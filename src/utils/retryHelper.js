@@ -1,4 +1,5 @@
 import pRetry, { AbortError } from 'p-retry';
+import logger from './logger.js';
 
 /**
  * Retry configuration for different services
@@ -10,10 +11,11 @@ export const RETRY_CONFIG = {
     maxTimeout: 4000,  // 4 seconds
     factor: 2,         // exponential backoff
     onFailedAttempt: (error) => {
-      console.log(
-        `OpenAI API attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`,
-        `Error: ${error.message}`
-      );
+      logger.warn('[OpenAI Retry] API attempt failed', {
+        attemptNumber: error.attemptNumber,
+        retriesLeft: error.retriesLeft,
+        error: error.message
+      });
     }
   },
   sendgrid: {
@@ -22,10 +24,11 @@ export const RETRY_CONFIG = {
     maxTimeout: 4000,  // 4 seconds
     factor: 2,         // exponential backoff
     onFailedAttempt: (error) => {
-      console.log(
-        `SendGrid API attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`,
-        `Error: ${error.message}`
-      );
+      logger.warn('[SendGrid Retry] API attempt failed', {
+        attemptNumber: error.attemptNumber,
+        retriesLeft: error.retriesLeft,
+        error: error.message
+      });
     }
   }
 };

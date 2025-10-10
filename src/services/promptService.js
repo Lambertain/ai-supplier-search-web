@@ -47,12 +47,17 @@ export function buildSupplierSearchMessages(settings, input) {
   ];
 }
 
-export function buildEmailWriterMessages(settings, supplier, context) {
+export function buildEmailWriterMessages(settings, supplier, context, language = 'en') {
   const supplierBlock = buildSupplierBlock(supplier);
   const productBlock = buildProductBlock(context);
+
+  // Language-specific instruction for OpenAI
+  const languageInstruction = getLanguageInstruction(language);
+
   const variables = {
     supplier_block: supplierBlock,
-    product_block: productBlock
+    product_block: productBlock,
+    language_instruction: languageInstruction
   };
 
   const system = settings.prompts.emailWriterSystem;
@@ -62,6 +67,42 @@ export function buildEmailWriterMessages(settings, supplier, context) {
     { role: 'system', content: system },
     { role: 'user', content: user }
   ];
+}
+
+/**
+ * Get language-specific instruction for email generation
+ * @param {string} languageCode - ISO 639-1 language code
+ * @returns {string} Instruction for OpenAI
+ */
+function getLanguageInstruction(languageCode) {
+  const languageMap = {
+    'zh': 'ВАЖНО: Напиши письмо на КИТАЙСКОМ ЯЗЫКЕ (简体中文). Используй упрощенные китайские иероглифы. Будь вежлив и формален.',
+    'zh-TW': 'ВАЖНО: Напиши письмо на ТРАДИЦИОННОМ КИТАЙСКОМ (繁體中文). Используй традиционные китайские иероглифы.',
+    'ja': 'ВАЖНО: Напиши письмо на ЯПОНСКОМ ЯЗЫКЕ (日本語). Используй вежливую форму keigo (敬語).',
+    'ko': 'ВАЖНО: Напиши письмо на КОРЕЙСКОМ ЯЗЫКЕ (한국어). Используй вежливую форму речи.',
+    'de': 'ВАЖНО: Напиши письмо на НЕМЕЦКОМ ЯЗЫКЕ. Используй формальное обращение "Sie".',
+    'fr': 'ВАЖНО: Напиши письмо на ФРАНЦУЗСКОМ ЯЗЫКЕ. Используй формальный стиль "vous".',
+    'es': 'ВАЖНО: Напиши письмо на ИСПАНСКОМ ЯЗЫКЕ. Используй формальное обращение "usted".',
+    'it': 'ВАЖНО: Напиши письмо на ИТАЛЬЯНСКОМ ЯЗЫКЕ. Используй формальное обращение "Lei".',
+    'pt': 'ВАЖНО: Напиши письмо на ПОРТУГАЛЬСКОМ ЯЗЫКЕ. Используй формальный стиль.',
+    'nl': 'ВАЖНО: Напиши письмо на ГОЛЛАНДСКОМ ЯЗЫКЕ. Используй вежливую форму "u".',
+    'pl': 'ВАЖНО: Напиши письмо на ПОЛЬСКОМ ЯЗЫКЕ. Используй вежливую форму Pan/Pani.',
+    'cs': 'ВАЖНО: Напиши письмо на ЧЕШСКОМ ЯЗЫКЕ. Используй формальное обращение.',
+    'el': 'ВАЖНО: Напиши письмо на ГРЕЧЕСКОМ ЯЗЫКЕ (Ελληνικά). Используй формальный стиль.',
+    'tr': 'ВАЖНО: Напиши письмо на ТУРЕЦКОМ ЯЗЫКЕ. Используй формальное обращение "Siz".',
+    'ru': 'ВАЖНО: Напиши письмо на РУССКОМ ЯЗЫКЕ. Используй обращение "Вы".',
+    'uk': 'ВАЖНО: Напиши письмо на УКРАИНСКОМ ЯЗЫКЕ. Используй обращение "Ви".',
+    'ar': 'ВАЖНО: Напиши письмо на АРАБСКОМ ЯЗЫКЕ (العربية). Используй формальный стиль.',
+    'he': 'ВАЖНО: Напиши письмо на ИВРИТЕ (עברית). Используй формальный стиль.',
+    'vi': 'ВАЖНО: Напиши письмо на ВЬЕТНАМСКОМ ЯЗЫКЕ. Используй вежливый стиль.',
+    'th': 'ВАЖНО: Напиши письмо на ТАЙСКОМ ЯЗЫКЕ (ไทย). Используй вежливые частицы ka/krub.',
+    'id': 'ВАЖНО: Напиши письмо на ИНДОНЕЗИЙСКОМ ЯЗЫКЕ (Bahasa Indonesia).',
+    'ms': 'ВАЖНО: Напиши письмо на МАЛАЙСКОМ ЯЗЫКЕ (Bahasa Melayu).',
+    'hi': 'ВАЖНО: Напиши письмо на ХИНДИ (हिंदी). Используй формальное обращение "aap".',
+    'en': 'IMPORTANT: Write the email in ENGLISH. Use formal business language.'
+  };
+
+  return languageMap[languageCode] || languageMap['en'];
 }
 
 export function buildResponseMessages(settings, conversation) {

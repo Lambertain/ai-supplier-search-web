@@ -1,10 +1,35 @@
 ﻿import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { runSupplierSearch } from '../services/searchService.js';
 import { getSettings } from '../storage/settingsStore.js';
 import { listSearches, getSearch } from '../storage/searchStore.js';
 import { validateRequest, searchSchema } from '../middleware/validation.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
+
+// Strict rate limiter for expensive search operations
+const searchLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit each IP to 10 searches per hour (expensive OpenAI + SendGrid operations)
+  message: 'Too many searches from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    logger.warn('[Rate Limit] IP exceeded search rate limit', {
+      ip: req.ip,
+      path: req.path,
+      body: req.body
+    });
+    res.status(429).json({
+      error: 'Too many searches',
+      message: 'You have exceeded the hourly search limit (10 searches/hour). This protects against accidental loops and abuse.',
+      retryAfter: Math.ceil(req.rateLimit.resetTime / 1000),
+      limit: 10,
+      windowMs: 3600000
+    });
+  }
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -34,7 +59,7 @@ router.get('/:searchId', async (req, res, next) => {
   }
 });
 
-router.post('/', validateRequest(searchSchema), async (req, res, next) => {
+router.post('/', searchLimiter, validateRequest(searchSchema), async (req, res, next) => {
   try {
     const settings = await getSettings();
     const result = await runSupplierSearch(req.body, settings, {});

@@ -345,11 +345,11 @@ export async function deleteSupplierById(supplierId) {
   );
 }
 
-export async function recordEmailSend({ searchId, supplierId, status, error }) {
+export async function recordEmailSend({ searchId, supplierId, status, error, language }) {
   await query(
-    `INSERT INTO email_sends (search_id, supplier_id, status, error)
-     VALUES ($1,$2,$3,$4)` ,
-    [searchId, supplierId, status, error || null]
+    `INSERT INTO email_sends (search_id, supplier_id, status, error, language)
+     VALUES ($1,$2,$3,$4,$5)` ,
+    [searchId, supplierId, status, error || null, language || 'en']
   );
 }
 
@@ -368,6 +368,78 @@ export async function getLastEmailSend() {
   );
   if (!rows.length) return null;
   return rows[0].sent_at;
+}
+
+export async function getSearchHistory() {
+  const { rows } = await query(`
+    SELECT
+      s.search_id,
+      s.created_at as search_date,
+      s.product_description as query,
+      s.suppliers_validated as total_suppliers,
+      sup.id as supplier_id,
+      sup.company_name,
+      sup.email,
+      sup.country,
+      es.language as email_language,
+      es.status as email_status,
+      es.sent_at,
+      es.reply_received_at,
+      es.reply_text,
+      es.reply_language
+    FROM searches s
+    LEFT JOIN suppliers sup ON s.search_id = sup.search_id
+    LEFT JOIN email_sends es ON sup.id::text = es.supplier_id::text
+    ORDER BY s.created_at DESC, sup.created_at ASC
+    LIMIT 500
+  `);
+
+  return rows.map(row => ({
+    search_id: row.search_id,
+    search_date: row.search_date?.toISOString?.() || row.search_date,
+    query: row.query,
+    total_suppliers: row.total_suppliers || 0,
+    supplier_id: row.supplier_id,
+    company_name: row.company_name,
+    email: row.email,
+    country: row.country,
+    email_language: row.email_language,
+    email_status: row.email_status || 'queued',
+    sent_at: row.sent_at?.toISOString?.() || row.sent_at,
+    reply_received_at: row.reply_received_at?.toISOString?.() || row.reply_received_at,
+    reply_text: row.reply_text,
+    reply_language: row.reply_language
+  }));
+}
+
+export async function deleteSuppliersInBulk(supplierIds) {
+  if (!supplierIds || supplierIds.length === 0) return;
+
+  await withTransaction(async (client) => {
+    const placeholders = supplierIds.map((_, i) => `$${i + 1}`).join(',');
+
+    await client.query(
+      `DELETE FROM suppliers WHERE id IN (${placeholders})`,
+      supplierIds
+    );
+
+    await client.query(`
+      UPDATE searches
+      SET suppliers_validated = (
+        SELECT COUNT(*) FROM suppliers WHERE search_id = searches.search_id
+      ),
+      emails_sent = (
+        SELECT COALESCE(SUM(emails_sent), 0) FROM suppliers WHERE search_id = searches.search_id
+      )
+      WHERE search_id IN (
+        SELECT DISTINCT s.search_id
+        FROM searches s
+        WHERE EXISTS (
+          SELECT 1 FROM suppliers WHERE search_id = s.search_id
+        )
+      )
+    `);
+  });
 }
 
 
