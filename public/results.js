@@ -27,9 +27,9 @@ function renderHistoryTable(data) {
   const empty = document.getElementById('results-empty');
 
   if (!data || data.length === 0) {
-    tbody.innerHTML = '';
-    table.style.display = 'none';
-    empty.style.display = 'block';
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 20px; color: #666;">Поки немає даних. Таблиця буде заповнена після першого пошуку.</td></tr>';
+    table.style.display = 'table';
+    empty.style.display = 'none';
     return;
   }
 
@@ -242,14 +242,30 @@ async function loadGuidance() {
     const recommendations = settings.emailTemplates?.recommendations || '';
     guidanceBox.classList.remove('alert');
     guidanceBox.classList.add('notice');
+
+    const maxPerDay = policy.maxPerDay || 500;
+    const intervalSeconds = policy.intervalSeconds || 30;
+
     guidanceBox.innerHTML = `
-      <p><strong>Максимум листів на день:</strong> ${policy.maxPerDay || 500}</p>
-      <p><strong>Інтервал між листами (сек):</strong> ${policy.intervalSeconds || 30}</p>
-      <p><strong>Рекомендації:</strong> ${recommendations || 'Немає рекомендацій'}</p>
+      <div style="display: grid; gap: 12px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-weight: 600;">Ліміт на день:</span>
+          <span style="background: #e3f2fd; padding: 4px 12px; border-radius: 4px; font-weight: 500;">${maxPerDay} листів</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-weight: 600;">Інтервал відправки:</span>
+          <span style="background: #e8f5e9; padding: 4px 12px; border-radius: 4px; font-weight: 500;">${intervalSeconds} секунд</span>
+        </div>
+        ${recommendations ? `
+        <div style="margin-top: 8px; padding-top: 12px; border-top: 1px solid #e0e0e0;">
+          <p style="font-weight: 600; margin-bottom: 8px;">Додаткові рекомендації:</p>
+          <p style="line-height: 1.5;">${recommendations}</p>
+        </div>` : ''}
+      </div>
     `;
   } catch (error) {
     guidanceBox.classList.add('alert');
-    guidanceBox.textContent = `Помилка: ${error.message}`;
+    guidanceBox.textContent = `Помилка завантаження: ${error.message}`;
   }
 }
 

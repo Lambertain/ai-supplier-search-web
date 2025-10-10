@@ -373,23 +373,23 @@ export async function getLastEmailSend() {
 export async function getSearchHistory() {
   const { rows } = await query(`
     SELECT
-      s.search_id,
+      s.id as search_id,
       s.created_at as search_date,
-      s.product_description as query,
-      s.suppliers_validated as total_suppliers,
+      s.query as query,
+      s.supplier_count as total_suppliers,
       sup.id as supplier_id,
       sup.company_name,
       sup.email,
       sup.country,
-      es.language as email_language,
+      sup.language as email_language,
       es.status as email_status,
       es.sent_at,
       es.reply_received_at,
       es.reply_text,
       es.reply_language
     FROM searches s
-    LEFT JOIN suppliers sup ON s.search_id = sup.search_id
-    LEFT JOIN email_sends es ON sup.id::text = es.supplier_id::text
+    LEFT JOIN suppliers sup ON s.id = sup.search_id
+    LEFT JOIN email_sends es ON sup.id = es.supplier_id
     ORDER BY s.created_at DESC, sup.created_at ASC
     LIMIT 500
   `);
