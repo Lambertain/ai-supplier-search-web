@@ -56,17 +56,23 @@ function renderLatest(result) {
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const formData = new FormData(form);
-  const payload = Object.fromEntries(formData.entries());
-  delete payload.min_suppliers;
-  delete payload.max_suppliers;
+  const rawData = Object.fromEntries(formData.entries());
+
+  // Convert snake_case to camelCase for API
+  const payload = {
+    productDescription: rawData.product_description,
+    quantity: rawData.quantity,
+    targetPrice: rawData.target_price,
+    additionalRequirements: rawData.additional_requirements
+  };
 
   const minSuppliers = Number(minSuppliersInput.value);
   const maxSuppliers = Number(maxSuppliersInput.value);
   if (Number.isFinite(minSuppliers) && minSuppliers > 0) {
-    payload.min_suppliers = minSuppliers;
+    payload.minSuppliers = minSuppliers;
   }
   if (Number.isFinite(maxSuppliers) && maxSuppliers > 0) {
-    payload.max_suppliers = maxSuppliers;
+    payload.maxSuppliers = maxSuppliers;
   }
 
   setStatus('Запуск пошуку… це може зайняти кілька хвилин.', 'info');

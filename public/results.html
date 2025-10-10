@@ -31,26 +31,28 @@
           </div>
         </div>
         <div id="results-status" style="margin-top: 16px;"></div>
-        <table class="table history-table" id="history-table" style="margin-top: 16px;">
-          <thead>
-            <tr>
-              <th style="width: 40px;"><input type="checkbox" id="select-all" title="Вибрати всі"></th>
-              <th>ID Пошуку</th>
-              <th>Дата запуску</th>
-              <th>Запит</th>
-              <th>Знайдено</th>
-              <th>Назва компанії</th>
-              <th>Email</th>
-              <th>Статус листа</th>
-              <th>Дата відправки</th>
-              <th>Дата відповіді</th>
-              <th>Текст відповіді</th>
-              <th>Мова</th>
-            </tr>
-          </thead>
-          <tbody id="history-tbody">
-          </tbody>
-        </table>
+        <div style="overflow-x: auto; margin-top: 16px;">
+          <table class="table history-table" id="history-table" style="min-width: 1200px;">
+            <thead>
+              <tr>
+                <th style="width: 40px;"><input type="checkbox" id="select-all" title="Вибрати всі"></th>
+                <th>ID Пошуку</th>
+                <th>Дата запуску</th>
+                <th>Запит</th>
+                <th>Знайдено</th>
+                <th>Назва компанії</th>
+                <th>Email</th>
+                <th>Статус листа</th>
+                <th>Дата відправки</th>
+                <th>Дата відповіді</th>
+                <th>Текст відповіді</th>
+                <th>Мова</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody">
+            </tbody>
+          </table>
+        </div>
         <div id="results-empty" class="notice" style="display:none;">Дані ще не доступні. Запустіть пошук.</div>
       </section>
 
