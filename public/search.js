@@ -63,7 +63,8 @@ form.addEventListener('submit', async (event) => {
     productDescription: rawData.product_description,
     quantity: rawData.quantity,
     targetPrice: rawData.target_price,
-    additionalRequirements: rawData.additional_requirements
+    additionalRequirements: rawData.additional_requirements,
+    preferredRegion: rawData.preferred_region || 'china' // Default to China
   };
 
   const minSuppliers = Number(minSuppliersInput.value);

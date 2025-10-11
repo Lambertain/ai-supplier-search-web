@@ -1,6 +1,54 @@
 ﻿import { renderTemplate } from '../utils/template.js';
 import { sanitizeString } from '../utils/validation.js';
 
+/**
+ * Generate region-specific search instructions
+ * @param {string} region - Region code (china, asia, europe, usa, global)
+ * @returns {string} Geographic priority instructions for AI
+ */
+function getRegionInstructions(region) {
+  const regionMap = {
+    china: `**Geographic Priority (ВАЖНО):**
+1. **PRIMARY: China (mainland)** - Shenzhen, Guangzhou, Dongguan, Shanghai, Ningbo, Yiwu, Wenzhou
+2. Secondary: Taiwan, Hong Kong
+3. Avoid: Other regions unless absolutely necessary
+
+**Email Policy:** Accept Chinese business emails (QQ, 163, 126, yeah.net) - commonly used by legitimate Chinese manufacturers.`,
+
+    asia: `**Geographic Priority (ВАЖНО):**
+1. **PRIMARY: East Asia** - China, Taiwan, South Korea, Japan
+2. **SECONDARY: Southeast Asia** - Vietnam, Thailand, Malaysia, Indonesia
+3. Alternative: India, Bangladesh
+
+**Email Policy:** Accept Asian business emails including Chinese providers (QQ, 163, 126) and local domains.`,
+
+    europe: `**Geographic Priority (ВАЖНО):**
+1. **PRIMARY: Western Europe** - Germany, Poland, Czech Republic, Italy, France
+2. **SECONDARY: Eastern Europe** - Romania, Bulgaria, Hungary, Slovakia
+3. Alternative: Turkey (as manufacturing hub)
+
+**Email Policy:** Prefer company domain emails. Free email providers not acceptable.`,
+
+    usa: `**Geographic Priority (ВАЖНО):**
+1. **PRIMARY: United States** - Focus on manufacturing states (California, Texas, Michigan, Ohio)
+2. **SECONDARY: North America** - Canada, Mexico
+3. Alternative: Only if USA/Canada suppliers insufficient
+
+**Email Policy:** Professional company domain emails required. No free email providers.`,
+
+    global: `**Geographic Priority (ВАЖНО):**
+Global search - no geographic restrictions. Find best suppliers worldwide based on:
+- Manufacturing capability match
+- Competitive pricing
+- Export experience
+- Professional credentials
+
+**Email Policy:** Accept business emails from reputable regional providers (including Chinese QQ/163/126 for Asian suppliers).`
+  };
+
+  return regionMap[region] || regionMap.china;
+}
+
 function buildSupplierBlock(supplier) {
   return [
     '**SUPPLIER INFORMATION:**',
@@ -30,13 +78,18 @@ function buildProductBlock(context) {
 
 export function buildSupplierSearchMessages(settings, input) {
   const { searchConfig, prompts } = settings;
+
+  // Get region-specific instructions
+  const regionInstructions = getRegionInstructions(input.preferredRegion || 'china');
+
   const variables = {
     minSuppliers: searchConfig.minSuppliers,
     maxSuppliers: searchConfig.maxSuppliers,
     product_description: input.productDescription,
     quantity: input.quantity || 'Not specified',
     target_price: input.targetPrice || 'Not specified',
-    additional_requirements: input.additionalRequirements || 'None'
+    additional_requirements: input.additionalRequirements || 'None',
+    region_instructions: regionInstructions
   };
 
   const system = prompts.supplierSearchSystem;

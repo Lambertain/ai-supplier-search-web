@@ -6,6 +6,7 @@ export function validateSearchRequest(payload = {}) {
   const targetPrice = String(payload.target_price || payload.targetPrice || '').trim();
   const quantity = String(payload.quantity || '').trim();
   const additionalRequirements = String(payload.additional_requirements || payload.additionalRequirements || '').trim();
+  const preferredRegion = String(payload.preferred_region || payload.preferredRegion || 'china').trim().toLowerCase();
 
   const minSuppliersRaw = payload.min_suppliers ?? payload.minSuppliers;
   const maxSuppliersRaw = payload.max_suppliers ?? payload.maxSuppliers;
@@ -49,11 +50,24 @@ export function validateSearchRequest(payload = {}) {
     throw error;
   }
 
+  // Validate preferred region
+  const validRegions = ['china', 'asia', 'europe', 'usa', 'global'];
+  if (!validRegions.includes(preferredRegion)) {
+    errors.push(`Invalid region. Must be one of: ${validRegions.join(', ')}`);
+  }
+
+  if (errors.length) {
+    const error = new Error('Invalid search request');
+    error.details = errors;
+    throw error;
+  }
+
   return {
     productDescription,
     targetPrice,
     quantity,
     additionalRequirements,
+    preferredRegion,
     minSuppliers,
     maxSuppliers,
   };

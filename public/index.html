@@ -30,6 +30,15 @@
             <input id="max_suppliers" name="max_suppliers" type="number" min="1" max="50" value="10" placeholder="Максимум" />
           </div>
 
+          <label for="preferred_region">Регіон пошуку постачальників</label>
+          <select id="preferred_region" name="preferred_region">
+            <option value="china">🇨🇳 Китай (пріоритет) - Shenzhen, Guangzhou, Shanghai</option>
+            <option value="asia">🌏 Азія (широкий пошук) - Китай, Тайвань, Корея, В'єтнам</option>
+            <option value="europe">🇪🇺 Європа - Німеччина, Польща, Чехія, Італія</option>
+            <option value="usa">🇺🇸 США/Північна Америка</option>
+            <option value="global">🌍 Глобальний (без обмежень)</option>
+          </select>
+
           <label for="product_description">Опис товару</label>
           <textarea id="product_description" name="product_description" minlength="10" required placeholder="Приклад: Керамічні горнятка з матовим покриттям"></textarea>
 
