@@ -51,9 +51,17 @@ function mapSupplierRow(row) {
   };
 }
 
-export async function listSearches() {
+export async function listSearches(options = {}) {
+  // Add pagination support for scalability
+  const { limit = 100, offset = 0 } = options;
+
+  // Validate pagination parameters
+  const validLimit = Math.min(Math.max(1, parseInt(limit) || 100), 500); // Max 500 per page
+  const validOffset = Math.max(0, parseInt(offset) || 0);
+
   const { rows } = await query(
-    'SELECT * FROM searches ORDER BY started_at DESC NULLS LAST, created_at DESC LIMIT 100'
+    'SELECT * FROM searches ORDER BY started_at DESC NULLS LAST, created_at DESC LIMIT $1 OFFSET $2',
+    [validLimit, validOffset]
   );
   return rows.map(mapSearchRow);
 }
@@ -85,6 +93,7 @@ export async function getSearch(searchId) {
 export async function createSearchRecord(payload) {
   const { rows } = await query(
     `INSERT INTO searches (
+      id,
       search_id,
       product_description,
       target_price,
@@ -96,10 +105,11 @@ export async function createSearchRecord(payload) {
       suppliers_requested,
       suppliers_validated,
       emails_sent
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     RETURNING *`.
       replace(/\s+\n/g, ' \n'),
     [
+      payload.searchId,  // Use searchId for both id and search_id
       payload.searchId,
       payload.productDescription,
       payload.targetPrice,
@@ -118,8 +128,50 @@ export async function createSearchRecord(payload) {
 
 export async function addSuppliersToSearch(searchId, suppliers) {
   if (!suppliers.length) return;
+
   await withTransaction(async (client) => {
-    for (const supplier of suppliers) {
+    // Batch insert optimization: Use single query with multiple VALUES instead of loop
+    // This reduces network roundtrips from N to 1, significantly improving performance
+    const batchSize = 100; // Process in batches to avoid parameter limit (PostgreSQL max ~65535)
+
+    for (let i = 0; i < suppliers.length; i += batchSize) {
+      const batch = suppliers.slice(i, i + batchSize);
+
+      // Build VALUES clause with placeholders
+      const valuesClause = batch.map((_, index) => {
+        const offset = index * 25;
+        return `($${offset + 1},$${offset + 2},$${offset + 3},$${offset + 4},$${offset + 5},$${offset + 6},$${offset + 7},$${offset + 8},$${offset + 9},$${offset + 10},$${offset + 11},$${offset + 12},$${offset + 13},$${offset + 14},$${offset + 15},$${offset + 16},$${offset + 17},$${offset + 18},$${offset + 19},$${offset + 20},$${offset + 21},$${offset + 22},$${offset + 23},$${offset + 24},$${offset + 25})`;
+      }).join(',');
+
+      // Flatten all supplier data into single array
+      const values = batch.flatMap(supplier => [
+        supplier.id,
+        searchId,
+        supplier.company_name,
+        supplier.email,
+        supplier.phone,
+        supplier.country,
+        supplier.city,
+        supplier.website,
+        supplier.manufacturing_capabilities,
+        supplier.production_capacity,
+        supplier.certifications,
+        supplier.years_in_business,
+        supplier.estimated_price_range,
+        supplier.minimum_order_quantity,
+        supplier.status,
+        supplier.priority,
+        supplier.created_at,
+        supplier.last_contact || null,
+        supplier.emails_sent || 0,
+        supplier.emails_received || 0,
+        supplier.last_response_date || null,
+        supplier.notes || '',
+        JSON.stringify(supplier.conversation_history || []),
+        JSON.stringify(supplier.metadata || {}),
+        supplier.thread_id
+      ]);
+
       await client.query(
         `INSERT INTO suppliers (
           id, search_id, company_name, email, phone, country, city, website,
@@ -127,38 +179,12 @@ export async function addSuppliersToSearch(searchId, suppliers) {
           years_in_business, estimated_price_range, minimum_order_quantity,
           status, priority, created_at, last_contact, emails_sent, emails_received,
           last_response_date, notes, conversation_history, metadata, thread_id
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
-        ) ON CONFLICT (id) DO NOTHING`,
-        [
-          supplier.id,
-          searchId,
-          supplier.company_name,
-          supplier.email,
-          supplier.phone,
-          supplier.country,
-          supplier.city,
-          supplier.website,
-          supplier.manufacturing_capabilities,
-          supplier.production_capacity,
-          supplier.certifications,
-          supplier.years_in_business,
-          supplier.estimated_price_range,
-          supplier.minimum_order_quantity,
-          supplier.status,
-          supplier.priority,
-          supplier.created_at,
-          supplier.last_contact || null,
-          supplier.emails_sent || 0,
-          supplier.emails_received || 0,
-          supplier.last_response_date || null,
-          supplier.notes || '',
-          JSON.stringify(supplier.conversation_history || []),
-          JSON.stringify(supplier.metadata || {}),
-          supplier.thread_id
-        ]
+        ) VALUES ${valuesClause}
+        ON CONFLICT (id) DO NOTHING`,
+        values
       );
     }
+
     await client.query(
       `UPDATE searches
        SET suppliers_validated = (SELECT COUNT(*) FROM suppliers WHERE search_id = $1)
@@ -303,14 +329,21 @@ export async function listSuppliersForSearch(searchId) {
   return rows.map(mapSupplierRow);
 }
 
-export async function listSuppliersWithSearch(limit = 200) {
+export async function listSuppliersWithSearch(options = {}) {
+  // Add pagination support with backward compatibility
+  const { limit = 200, offset = 0 } = options;
+
+  // Validate pagination parameters
+  const validLimit = Math.min(Math.max(1, parseInt(limit) || 200), 1000); // Max 1000 per page
+  const validOffset = Math.max(0, parseInt(offset) || 0);
+
   const { rows } = await query(
     `SELECT s.*, c.product_description, c.started_at
      FROM suppliers s
      JOIN searches c ON c.search_id = s.search_id
      ORDER BY s.created_at DESC
-     LIMIT $1`,
-    [limit]
+     LIMIT $1 OFFSET $2`,
+    [validLimit, validOffset]
   );
   return rows.map((row) => ({
     ...mapSupplierRow(row),
