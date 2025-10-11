@@ -65,10 +65,14 @@ export function isBusinessEmail(email = '') {
     return false;
   }
 
-  const freeDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'qq.com', '163.com', '126.com', 'outlook.com', 'icloud.com'];
-  if (freeDomains.some((domain) => value.endsWith(domain))) {
+  // Blocked free email providers (consumer-only, not used by businesses)
+  const blockedDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'mail.ru'];
+  if (blockedDomains.some((domain) => value.endsWith(domain))) {
     return false;
   }
+
+  // Chinese email providers are ALLOWED (commonly used by legitimate Chinese manufacturers)
+  // QQ.com, 163.com, 126.com, yeah.net, sina.com, etc. are valid business emails in China
 
   return /@.+\./.test(value) && !/@\d+\./.test(value);
 }
