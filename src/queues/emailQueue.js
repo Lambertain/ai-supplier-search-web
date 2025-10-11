@@ -52,7 +52,12 @@ function getRedisConfig() {
     return redisUrl;
   }
 
-  // Default local Redis
+  // Return null if no Redis configured (production without Redis)
+  if (process.env.NODE_ENV === 'production' && !redisUrl) {
+    return null;
+  }
+
+  // Default local Redis for development
   return {
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: parseInt(process.env.REDIS_PORT || '6379'),
@@ -61,8 +66,9 @@ function getRedisConfig() {
   };
 }
 
-// Create email queue with Redis connection
-export const emailQueue = new Queue('email-sending', getRedisConfig(), {
+// Create email queue with Redis connection (only if Redis is configured)
+const redisConfig = getRedisConfig();
+export const emailQueue = redisConfig ? new Queue('email-sending', redisConfig, {
   defaultJobOptions: {
     attempts: 3,                    // Retry failed jobs 3 times
     backoff: {
@@ -77,12 +83,13 @@ export const emailQueue = new Queue('email-sending', getRedisConfig(), {
     duration: 60000,                               // 1 minute window
     bounceBack: true                               // Retry when rate limited
   }
-});
+}) : null;
 
 /**
  * Process email sending jobs
  */
-emailQueue.process(async (job) => {
+if (emailQueue) {
+  emailQueue.process(async (job) => {
   const { prepared, searchId, supplierId } = job.data;
 
   logger.info('Processing email job', {
@@ -151,37 +158,49 @@ emailQueue.process(async (job) => {
 
     throw error; // Let Bull handle retry logic
   }
-});
-
-/**
- * Event handlers for monitoring
- */
-emailQueue.on('completed', (job, result) => {
-  logger.debug('Email queue job completed', {
-    jobId: job.id,
-    result
   });
-});
 
-emailQueue.on('failed', (job, error) => {
-  logger.error('Email queue job failed', {
-    jobId: job.id,
-    attemptsMade: job.attemptsMade,
-    error: error.message
+  /**
+   * Event handlers for monitoring
+   */
+  emailQueue.on('completed', (job, result) => {
+    logger.debug('Email queue job completed', {
+      jobId: job.id,
+      result
+    });
   });
-});
 
-emailQueue.on('stalled', (job) => {
-  logger.warn('Email queue job stalled', {
-    jobId: job.id
+  emailQueue.on('failed', (job, error) => {
+    logger.error('Email queue job failed', {
+      jobId: job.id,
+      attemptsMade: job.attemptsMade,
+      error: error.message
+    });
   });
-});
+
+  emailQueue.on('stalled', (job) => {
+    logger.warn('Email queue job stalled', {
+      jobId: job.id
+    });
+  });
+}
 
 /**
  * Get daily email stats from queue
  * @returns {Promise<Object>} - Email stats for today
  */
 export async function getDailyEmailStats() {
+  // Return default stats if Redis not configured
+  if (!emailQueue) {
+    return {
+      sent: 0,
+      failed: 0,
+      total: 0,
+      dailyLimit: calculateDailyLimit(),
+      remaining: calculateDailyLimit()
+    };
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayTimestamp = today.getTime();
@@ -216,6 +235,11 @@ export async function isDailyLimitReached() {
  * @returns {Promise<Object>} - Job object or error
  */
 export async function queueEmail(emailData) {
+  // If Redis not configured, throw error
+  if (!emailQueue) {
+    throw new Error('Email queue not available: Redis not configured. Please set REDIS_URL environment variable.');
+  }
+
   // Check daily limit
   if (await isDailyLimitReached()) {
     const stats = await getDailyEmailStats();
@@ -242,6 +266,27 @@ export async function queueEmail(emailData) {
  * @returns {Promise<Object>} - Queue health status
  */
 export async function getQueueHealth() {
+  // Return default health if Redis not configured
+  if (!emailQueue) {
+    return {
+      status: 'unavailable',
+      message: 'Redis not configured',
+      counts: {
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0
+      },
+      daily: await getDailyEmailStats(),
+      limits: {
+        perMinute: EMAIL_LIMITS.RATE_LIMIT.perMinute,
+        perHour: EMAIL_LIMITS.RATE_LIMIT.perHour,
+        perDay: calculateDailyLimit()
+      }
+    };
+  }
+
   const [waiting, active, completed, failed, delayed] = await Promise.all([
     emailQueue.getWaitingCount(),
     emailQueue.getActiveCount(),
@@ -272,6 +317,8 @@ export async function getQueueHealth() {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  logger.info('Email queue shutting down gracefully');
-  await emailQueue.close();
+  if (emailQueue) {
+    logger.info('Email queue shutting down gracefully');
+    await emailQueue.close();
+  }
 });

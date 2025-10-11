@@ -47,6 +47,14 @@ async function checkDatabase() {
  * @returns {Promise<Object>} Redis health status
  */
 async function checkRedis() {
+  // Skip Redis check if REDIS_URL is not configured
+  if (!process.env.REDIS_URL && !process.env.REDIS_TLS_URL) {
+    return {
+      status: 'skipped',
+      message: 'Redis not configured (optional service)'
+    };
+  }
+
   try {
     const queueHealth = await getQueueHealth();
     return {
@@ -79,7 +87,8 @@ export async function getSystemHealth() {
   const dbHealth = database.status === 'fulfilled' ? database.value : { status: 'unhealthy', error: database.reason?.message };
   const redisHealth = redis.status === 'fulfilled' ? redis.value : { status: 'unhealthy', error: redis.reason?.message };
 
-  const isHealthy = dbHealth.status === 'healthy' && redisHealth.status === 'healthy';
+  // System is healthy if database is healthy and Redis is either healthy or skipped
+  const isHealthy = dbHealth.status === 'healthy' && (redisHealth.status === 'healthy' || redisHealth.status === 'skipped');
   const responseTime = Date.now() - startTime;
 
   return {
