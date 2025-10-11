@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: supplier-search-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: supplier_admin
+      POSTGRES_PASSWORD: dev_password_change_in_prod
+      POSTGRES_DB: supplier_search
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supplier_admin -d supplier_search"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
