@@ -378,11 +378,11 @@ export async function deleteSupplierById(supplierId) {
   );
 }
 
-export async function recordEmailSend({ searchId, supplierId, status, error, language }) {
+export async function recordEmailSend({ searchId, supplierId, recipientEmail, status, error, language }) {
   await query(
-    `INSERT INTO email_sends (search_id, supplier_id, status, error, language)
-     VALUES ($1,$2,$3,$4,$5)` ,
-    [searchId, supplierId, status, error || null, language || 'en']
+    `INSERT INTO email_sends (search_id, supplier_id, recipient_email, status, failure_reason, language)
+     VALUES ($1,$2,$3,$4,$5,$6)` ,
+    [searchId, supplierId, recipientEmail, status, error || null, language || 'en']
   );
 }
 

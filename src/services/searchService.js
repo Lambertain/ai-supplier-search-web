@@ -299,6 +299,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
       await recordEmailSend({
         searchId,
         supplierId: supplier.id,
+        recipientEmail: supplier.email,
         status: 'queued',
         language: emailContent.language
       });
@@ -342,6 +343,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
       await recordEmailSend({
         searchId,
         supplierId: supplier.id,
+        recipientEmail: supplier.email,
         status: 'failed',
         error: error.message,
         language: 'en' // Default to English for failed emails
