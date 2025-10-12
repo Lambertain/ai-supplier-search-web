@@ -1,12 +1,24 @@
 -- Migration: 003_add_priority_column
 -- Created: 2025-10-12
--- Description: Add priority column to suppliers table
+-- Description: Change priority column from INTEGER to VARCHAR in suppliers table
 
--- Add priority column as VARCHAR since code uses 'High' and 'Normal' strings
+-- Step 1: Check if priority column exists and what type it is
+DO $$
+BEGIN
+    -- If priority column exists, drop it first
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'suppliers' AND column_name = 'priority'
+    ) THEN
+        ALTER TABLE suppliers DROP COLUMN priority;
+    END IF;
+END $$;
+
+-- Step 2: Add priority column as VARCHAR
 ALTER TABLE suppliers
-ADD COLUMN IF NOT EXISTS priority VARCHAR(50);
+ADD COLUMN priority VARCHAR(50);
 
--- Set default values for existing rows
+-- Step 3: Set default values for existing rows
 UPDATE suppliers
 SET priority = 'Normal'
 WHERE priority IS NULL;
