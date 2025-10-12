@@ -231,16 +231,85 @@ export async function isDailyLimitReached() {
 
 /**
  * Add email to queue with daily limit check
+ * If Redis not available, sends email immediately without queuing
  * @param {Object} emailData - Email data { prepared, searchId, supplierId }
- * @returns {Promise<Object>} - Job object or error
+ * @returns {Promise<Object>} - Job object or send result
  */
 export async function queueEmail(emailData) {
-  // If Redis not configured, throw error
+  const { prepared, searchId, supplierId } = emailData;
+
+  // If Redis not configured, send email immediately without queue
   if (!emailQueue) {
-    throw new Error('Email queue not available: Redis not configured. Please set REDIS_URL environment variable.');
+    logger.warn('Redis not configured, sending email directly without queue', {
+      supplierId,
+      searchId
+    });
+
+    try {
+      // Send email directly via SendGrid
+      const result = await sendTransactionalEmail(prepared, process.env.SENDGRID_API_KEY);
+
+      logger.info('Email sent directly (no queue)', {
+        supplierId,
+        recipient: prepared.metadata.supplierInfo.email,
+        status: result.status
+      });
+
+      // Update supplier status
+      await updateSupplier(searchId, supplierId, (current) => ({
+        ...current,
+        status: 'Email Sent via SendGrid',
+        emails_sent: (current.emails_sent || 0) + 1,
+        last_contact: new Date().toISOString(),
+        conversation_history: [
+          ...(current.conversation_history || []),
+          {
+            direction: 'outbound',
+            subject: prepared.metadata.emailSubject,
+            body: prepared.metadata.emailBody,
+            provider: 'sendgrid',
+            sent_at: new Date().toISOString(),
+            message_id: result.headers?.['x-message-id'] || result.headers?.['X-Message-Id'] || 'unknown'
+          }
+        ]
+      }));
+
+      // Record successful email send in metrics
+      recordEmail('sent');
+
+      // Return a job-like object for compatibility
+      return {
+        id: `direct-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        data: emailData,
+        status: 'completed',
+        result: {
+          success: true,
+          supplierId,
+          emailStatus: result.status,
+          sentAt: new Date().toISOString()
+        }
+      };
+    } catch (error) {
+      logger.error('Failed to send email directly', {
+        supplierId,
+        error: error.message
+      });
+
+      // Update supplier status to 'Email Failed'
+      await updateSupplier(searchId, supplierId, (current) => ({
+        ...current,
+        status: 'Email Failed',
+        notes: [current.notes, `Send failed: ${error.message}`].filter(Boolean).join('\n')
+      }));
+
+      // Record failed email in metrics
+      recordEmail('failed');
+
+      throw error;
+    }
   }
 
-  // Check daily limit
+  // Check daily limit (only when using Redis queue)
   if (await isDailyLimitReached()) {
     const stats = await getDailyEmailStats();
     throw new Error(`Daily email limit reached (${stats.total}/${stats.dailyLimit}). Try again tomorrow.`);
