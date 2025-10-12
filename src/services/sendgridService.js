@@ -19,7 +19,7 @@ function ensureClient(keyFromSettings) {
 }
 
 function buildHtmlBody(emailContent, settings) {
-  const replyTo = settings.emailConfig.replyTo;
+  const replyTo = settings?.emailConfig?.replyTo || process.env.REPLY_TO || 'noreply@example.com';
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -63,12 +63,12 @@ export function prepareSendGridEmail({ supplier, emailContent, settings, searchC
       }
     ],
     from: {
-      email: process.env.FROM_EMAIL || settings.emailConfig.fromEmail,
-      name: process.env.FROM_NAME || settings.emailConfig.fromName
+      email: process.env.FROM_EMAIL || settings?.emailConfig?.fromEmail || 'noreply@example.com',
+      name: process.env.FROM_NAME || settings?.emailConfig?.fromName || 'Procurement Team'
     },
     replyTo: {
-      email: process.env.REPLY_TO || settings.emailConfig.replyTo,
-      name: settings.emailConfig.fromName
+      email: process.env.REPLY_TO || settings?.emailConfig?.replyTo || 'noreply@example.com',
+      name: settings?.emailConfig?.fromName || 'Procurement Team'
     },
     content: [
       { type: 'text/plain', value: emailContent.body },
@@ -79,7 +79,7 @@ export function prepareSendGridEmail({ supplier, emailContent, settings, searchC
       clickTracking: { enable: true, enableText: false },
       openTracking: { enable: true }
     },
-    headers: settings.compliance.antispamHeaders
+    headers: settings?.compliance?.antispamHeaders || {}
   };
 
   return {
@@ -125,7 +125,7 @@ export const sendSummaryEmail = withSendGridRetry(async function sendSummaryEmai
       }
     ],
     from: {
-      email: process.env.FROM_EMAIL || settings.emailConfig.fromEmail,
+      email: process.env.FROM_EMAIL || settings?.emailConfig?.fromEmail || 'noreply@example.com',
       name: 'Procurement AI Agent'
     },
     content: [
