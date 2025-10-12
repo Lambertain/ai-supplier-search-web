@@ -63,11 +63,23 @@ function mapSupplierCandidate(candidate, index, searchContext) {
 }
 
 function validateSuppliers(candidates, searchContext) {
+  // Handle both array and object responses from OpenAI
+  let supplierArray = candidates;
+
   if (!Array.isArray(candidates)) {
-    throw new Error('OpenAI supplier output is not an array');
+    // Try to extract array from common object keys
+    if (candidates && typeof candidates === 'object') {
+      supplierArray = candidates.suppliers || candidates.data || candidates.results || [];
+    } else {
+      throw new Error('OpenAI supplier output is not an array or valid object');
+    }
   }
 
-  const filtered = candidates.filter((candidate) => {
+  if (!Array.isArray(supplierArray) || supplierArray.length === 0) {
+    throw new Error('OpenAI supplier output does not contain valid suppliers array');
+  }
+
+  const filtered = supplierArray.filter((candidate) => {
     const emailValid = isBusinessEmail(candidate.email);
     const nameValid = Boolean(candidate.company_name) && /\b(ltd|inc|corp|co|company|manufacturing|factory|group|industries)\b/i.test(candidate.company_name);
     const hasCountry = Boolean(candidate.country);
@@ -239,7 +251,8 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     productDescription: input.productDescription,
     targetPrice: input.targetPrice,
     quantity: input.quantity,
-    additionalRequirements: input.additionalRequirements
+    additionalRequirements: input.additionalRequirements,
+    preferredRegion: input.preferredRegion
   });
 
   const supplierResponse = await chatCompletionJson({
