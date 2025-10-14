@@ -408,7 +408,7 @@ export async function getSearchHistory() {
     SELECT
       s.id as search_id,
       s.created_at as search_date,
-      s.query as query,
+      COALESCE(s.product_description, s.query) as query,
       s.supplier_count as total_suppliers,
       sup.id as supplier_id,
       sup.company_name,
@@ -418,7 +418,7 @@ export async function getSearchHistory() {
       sup.minimum_order_quantity,
       sup.country,
       sup.language as email_language,
-      es.status as email_status,
+      COALESCE(es.status, 'not_sent') as email_status,
       es.sent_at,
       es.reply_received_at,
       es.reply_text,
@@ -426,7 +426,32 @@ export async function getSearchHistory() {
     FROM searches s
     LEFT JOIN suppliers sup ON s.id = sup.search_id
     LEFT JOIN email_sends es ON sup.id = es.supplier_id
-    ORDER BY s.created_at DESC, sup.created_at ASC
+
+    UNION ALL
+
+    SELECT
+      sup.search_id as search_id,
+      sup.created_at as search_date,
+      'Історичний пошук (без деталей)' as query,
+      (SELECT COUNT(*) FROM suppliers WHERE search_id = sup.search_id) as total_suppliers,
+      sup.id as supplier_id,
+      sup.company_name,
+      sup.email,
+      sup.website,
+      sup.estimated_price_range,
+      sup.minimum_order_quantity,
+      sup.country,
+      sup.language as email_language,
+      COALESCE(es.status, 'not_sent') as email_status,
+      es.sent_at,
+      es.reply_received_at,
+      es.reply_text,
+      es.reply_language
+    FROM suppliers sup
+    LEFT JOIN email_sends es ON sup.id = es.supplier_id
+    WHERE sup.search_id NOT IN (SELECT id FROM searches)
+
+    ORDER BY search_date DESC
     LIMIT 500
   `);
 
