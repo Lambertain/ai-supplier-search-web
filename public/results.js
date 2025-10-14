@@ -27,7 +27,7 @@ function renderHistoryTable(data) {
   const empty = document.getElementById('results-empty');
 
   if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 20px; color: #666;">Поки немає даних. Таблиця буде заповнена після першого пошуку.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 20px; color: #666;">Поки немає даних. Таблиця буде заповнена після першого пошуку.</td></tr>';
     table.style.display = 'table';
     empty.style.display = 'none';
     return;
