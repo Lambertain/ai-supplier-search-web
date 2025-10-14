@@ -58,11 +58,6 @@
                   <th>Веб-сайт</th>
                   <th>Оптова ціна</th>
                   <th>Мін. замовлення</th>
-                  <th>Статус листа</th>
-                  <th>Дата відправки</th>
-                  <th>Дата відповіді</th>
-                  <th>Текст відповіді</th>
-                  <th>Мова</th>
                 </tr>
               </thead>
               <tbody id="history-tbody">
@@ -102,13 +97,14 @@
             </table>
           </div>
           <div id="send-empty" class="notice" style="display:none;">Листи ще не відправлялись.</div>
-        </div>
-      </section>
 
-      <section class="card">
-        <h2>Рекомендації з відправки листів</h2>
-        <p style="margin-bottom: 12px; color: #666;">Цей блок показує поточні обмеження SendGrid та рекомендації для безпечної відправки email-кампаній.</p>
-        <div id="sendgrid-guidance" class="notice">Завантаження рекомендацій…</div>
+          <!-- Рекомендації SendGrid -->
+          <div style="margin-top: 32px;">
+            <h3>Рекомендації з відправки листів</h3>
+            <p style="margin-bottom: 12px; color: #666;">Цей блок показує поточні обмеження SendGrid та рекомендації для безпечної відправки email-кампаній.</p>
+            <div id="sendgrid-guidance" class="notice">Завантаження рекомендацій…</div>
+          </div>
+        </div>
       </section>
     </main>
 

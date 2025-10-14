@@ -56,11 +56,6 @@ function renderHistoryTable(data) {
       <td>${row.website ? `<a href="${escapeHtml(row.website)}" target="_blank" rel="noopener">🔗 Сайт</a>` : '-'}</td>
       <td>${escapeHtml(row.estimated_price_range || '-')}</td>
       <td>${escapeHtml(row.minimum_order_quantity || '-')}</td>
-      <td>${renderStatusBadge(row.email_status)}</td>
-      <td>${row.sent_at ? formatDate(row.sent_at) : '-'}</td>
-      <td>${row.reply_received_at ? formatDate(row.reply_received_at) : '-'}</td>
-      <td>${renderReplyPreview(row.reply_text)}</td>
-      <td>${renderLanguageFlag(row.email_language, row.country)}</td>
     `;
     tbody.appendChild(tr);
   });
