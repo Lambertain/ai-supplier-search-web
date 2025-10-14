@@ -413,6 +413,9 @@ export async function getSearchHistory() {
       sup.id as supplier_id,
       sup.company_name,
       sup.email,
+      sup.website,
+      sup.estimated_price_range,
+      sup.minimum_order_quantity,
       sup.country,
       sup.language as email_language,
       es.status as email_status,
@@ -435,6 +438,9 @@ export async function getSearchHistory() {
     supplier_id: row.supplier_id,
     company_name: row.company_name,
     email: row.email,
+    website: row.website,
+    estimated_price_range: row.estimated_price_range,
+    minimum_order_quantity: row.minimum_order_quantity,
     country: row.country,
     email_language: row.email_language,
     email_status: row.email_status || 'queued',
@@ -473,6 +479,82 @@ export async function deleteSuppliersInBulk(supplierIds) {
       )
     `);
   });
+}
+
+export async function getSendHistory() {
+  const { rows } = await query(`
+    SELECT
+      es.created_at,
+      sup.company_name,
+      sup.email,
+      sup.country,
+      sup.language as email_language,
+      es.status,
+      es.sent_at,
+      es.reply_received_at,
+      es.reply_text,
+      es.reply_language
+    FROM email_sends es
+    JOIN suppliers sup ON es.supplier_id = sup.id
+    ORDER BY es.created_at DESC
+    LIMIT 500
+  `);
+
+  return rows.map(row => ({
+    created_at: row.created_at?.toISOString?.() || row.created_at,
+    company_name: row.company_name,
+    email: row.email,
+    country: row.country,
+    email_language: row.email_language,
+    status: row.status || 'queued',
+    sent_at: row.sent_at?.toISOString?.() || row.sent_at,
+    reply_received_at: row.reply_received_at?.toISOString?.() || row.reply_received_at,
+    reply_text: row.reply_text,
+    reply_language: row.reply_language
+  }));
+}
+
+export async function queueEmailsForSuppliers(supplierIds, addEmailToQueueFn) {
+  if (!supplierIds || supplierIds.length === 0) return 0;
+
+  const placeholders = supplierIds.map((_, i) => `$${i + 1}`).join(',');
+
+  const { rows } = await query(
+    `SELECT id, search_id, company_name, email, language
+     FROM suppliers
+     WHERE id IN (${placeholders})
+       AND email IS NOT NULL
+       AND email != ''`,
+    supplierIds
+  );
+
+  let queuedCount = 0;
+
+  for (const supplier of rows) {
+    try {
+      await addEmailToQueueFn({
+        searchId: supplier.search_id,
+        supplierId: supplier.id,
+        recipientEmail: supplier.email,
+        recipientName: supplier.company_name,
+        language: supplier.language || 'en'
+      });
+
+      await query(
+        `INSERT INTO email_sends (search_id, supplier_id, recipient_email, status, language)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (supplier_id) DO UPDATE
+         SET status = EXCLUDED.status, language = EXCLUDED.language`,
+        [supplier.search_id, supplier.id, supplier.email, 'queued', supplier.language || 'en']
+      );
+
+      queuedCount++;
+    } catch (error) {
+      console.error(`Failed to queue email for supplier ${supplier.id}:`, error);
+    }
+  }
+
+  return queuedCount;
 }
 
 

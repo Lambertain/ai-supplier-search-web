@@ -38,19 +38,24 @@ function renderHistoryTable(data) {
   empty.style.display = 'none';
 
   data.forEach(row => {
-    if (!row.supplier_id) {
-      return;
-    }
-
     const tr = document.createElement('tr');
+
+    // Only add checkbox if supplier_id exists
+    const checkboxHtml = row.supplier_id
+      ? `<input type="checkbox" class="row-checkbox" data-supplier-id="${row.supplier_id}">`
+      : '';
+
     tr.innerHTML = `
-      <td><input type="checkbox" class="row-checkbox" data-supplier-id="${row.supplier_id || ''}"></td>
+      <td>${checkboxHtml}</td>
       <td>${escapeHtml(row.search_id || '')}</td>
       <td>${formatDate(row.search_date)}</td>
       <td>${escapeHtml(row.query || '')}</td>
       <td>${row.total_suppliers || 0}</td>
       <td>${escapeHtml(row.company_name || '-')}</td>
       <td>${escapeHtml(row.email || '-')}</td>
+      <td>${row.website ? `<a href="${escapeHtml(row.website)}" target="_blank" rel="noopener">🔗 Сайт</a>` : '-'}</td>
+      <td>${escapeHtml(row.estimated_price_range || '-')}</td>
+      <td>${escapeHtml(row.minimum_order_quantity || '-')}</td>
       <td>${renderStatusBadge(row.email_status)}</td>
       <td>${row.sent_at ? formatDate(row.sent_at) : '-'}</td>
       <td>${row.reply_received_at ? formatDate(row.reply_received_at) : '-'}</td>
@@ -151,8 +156,9 @@ function attachCheckboxListeners() {
   document.getElementById('select-all').addEventListener('change', (e) => {
     const checkboxes = document.querySelectorAll('.row-checkbox');
     checkboxes.forEach(cb => {
+      if (!cb.dataset.supplierId) return; // Skip if no supplier_id
       cb.checked = e.target.checked;
-      if (e.target.checked && cb.dataset.supplierId) {
+      if (e.target.checked) {
         selectedSuppliers.add(cb.dataset.supplierId);
       } else {
         selectedSuppliers.delete(cb.dataset.supplierId);
@@ -311,7 +317,169 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   loadSearchHistory();
 });
 
+// Tab switching logic
+function initTabSwitching() {
+  const tabButtons = document.querySelectorAll('.tab-button');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const targetTab = button.dataset.tab;
+
+      // Remove active class from all buttons and contents
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+
+      // Add active class to clicked button and corresponding content
+      button.classList.add('active');
+      document.getElementById(targetTab).classList.add('active');
+
+      // Load data for the selected tab
+      if (targetTab === 'send-history') {
+        loadSendHistory();
+      }
+    });
+  });
+}
+
+// Load send history data
+async function loadSendHistory() {
+  try {
+    setSendStatus('Завантаження історії відправки...', 'info');
+
+    const response = await fetch('/api/results/send-history');
+    if (!response.ok) {
+      throw new Error('Failed to load send history');
+    }
+
+    const data = await response.json();
+    renderSendHistoryTable(data);
+
+    setSendStatus('', 'info');
+  } catch (error) {
+    console.error('Error loading send history:', error);
+    setSendStatus('Помилка завантаження даних', 'error');
+    document.getElementById('send-empty').style.display = 'block';
+    document.getElementById('send-table').style.display = 'none';
+  }
+}
+
+// Render send history table
+function renderSendHistoryTable(data) {
+  const tbody = document.getElementById('send-tbody');
+  const table = document.getElementById('send-table');
+  const empty = document.getElementById('send-empty');
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #666;">Листи ще не відправлялись.</td></tr>';
+    table.style.display = 'table';
+    empty.style.display = 'none';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  table.style.display = 'table';
+  empty.style.display = 'none';
+
+  data.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${formatDate(row.created_at)}</td>
+      <td>${escapeHtml(row.company_name || '-')}</td>
+      <td>${escapeHtml(row.email || '-')}</td>
+      <td>${renderStatusBadge(row.status)}</td>
+      <td>${row.sent_at ? formatDate(row.sent_at) : '-'}</td>
+      <td>${row.reply_received_at ? formatDate(row.reply_received_at) : '-'}</td>
+      <td>${renderReplyPreview(row.reply_text)}</td>
+      <td>${renderLanguageFlag(row.email_language, row.country)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Update button states for send emails
+function updateBulkDeleteButton() {
+  const deleteBtn = document.getElementById('bulk-delete-btn');
+  const deleteCount = document.getElementById('selected-count');
+  const sendBtn = document.getElementById('send-emails-btn');
+  const sendCount = document.getElementById('send-count');
+
+  if (selectedSuppliers.size > 0) {
+    deleteBtn.style.display = 'inline-block';
+    sendBtn.style.display = 'inline-block';
+    deleteCount.textContent = selectedSuppliers.size;
+    sendCount.textContent = selectedSuppliers.size;
+  } else {
+    deleteBtn.style.display = 'none';
+    sendBtn.style.display = 'none';
+  }
+}
+
+// Set status for send history tab
+function setSendStatus(message, type = 'info') {
+  const statusBox = document.getElementById('send-status');
+  if (!message) {
+    statusBox.innerHTML = '';
+    return;
+  }
+  const classes = {
+    info: 'notice',
+    error: 'alert',
+    success: 'success'
+  };
+  statusBox.innerHTML = `<div class="${classes[type] || 'notice'}">${message}</div>`;
+}
+
+// Send emails to selected suppliers
+document.getElementById('send-emails-btn')?.addEventListener('click', () => {
+  document.getElementById('send-modal-count').textContent = selectedSuppliers.size;
+  document.getElementById('send-modal').style.display = 'flex';
+});
+
+document.getElementById('confirm-send-btn')?.addEventListener('click', async () => {
+  const supplierIds = Array.from(selectedSuppliers);
+
+  try {
+    setStatus('Відправка листів...', 'info');
+
+    const response = await fetch('/api/results/send-emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ supplier_ids: supplierIds })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      selectedSuppliers.clear();
+      document.getElementById('send-modal').style.display = 'none';
+      document.getElementById('select-all').checked = false;
+      updateBulkDeleteButton();
+
+      setStatus(`Листи успішно поставлені в чергу для відправки (${result.queued} шт.)`, 'success');
+
+      // Switch to send history tab and reload
+      document.querySelector('[data-tab="send-history"]').click();
+    } else {
+      const error = await response.json();
+      setStatus('Помилка відправки: ' + (error.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    console.error('Send error:', error);
+    setStatus('Помилка відправки листів', 'error');
+  }
+});
+
+document.getElementById('cancel-send-btn')?.addEventListener('click', () => {
+  document.getElementById('send-modal').style.display = 'none';
+});
+
+// Refresh send history button
+document.getElementById('refreshSendHistoryBtn')?.addEventListener('click', () => {
+  loadSendHistory();
+});
+
 document.addEventListener('DOMContentLoaded', () => {
+  initTabSwitching();
   loadSearchHistory();
   loadGuidance();
 });

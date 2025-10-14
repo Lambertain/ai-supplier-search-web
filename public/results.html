@@ -19,41 +19,90 @@
     </header>
     <main>
       <section class="card">
-        <div class="history-header">
-          <h2>Історія пошуку</h2>
-          <button id="bulk-delete-btn" class="btn-danger" style="display:none;">
-            Видалити вибрані (<span id="selected-count">0</span>)
-          </button>
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+          <button class="tab-button active" data-tab="search-history">Історія пошуку</button>
+          <button class="tab-button" data-tab="send-history">Історія відправки</button>
         </div>
-        <div class="flex" style="align-items: flex-end; gap: 16px; margin-top: 16px;">
-          <div>
-            <button id="refreshBtn">Оновити</button>
+
+        <!-- Tab 1: Search History -->
+        <div id="search-history" class="tab-content active">
+          <div class="history-header">
+            <h2>Історія пошуку</h2>
+            <div class="action-buttons">
+              <button id="send-emails-btn" class="btn-primary" style="display:none;">
+                Відправити листи (<span id="send-count">0</span>)
+              </button>
+              <button id="bulk-delete-btn" class="btn-danger" style="display:none;">
+                Видалити вибрані (<span id="selected-count">0</span>)
+              </button>
+            </div>
           </div>
+          <div class="flex" style="align-items: flex-end; gap: 16px; margin-top: 16px;">
+            <div>
+              <button id="refreshBtn">Оновити</button>
+            </div>
+          </div>
+          <div id="results-status" style="margin-top: 16px;"></div>
+          <div style="overflow-x: auto; margin-top: 16px;">
+            <table class="table history-table" id="history-table" style="min-width: 100%; width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 40px;"><input type="checkbox" id="select-all" title="Вибрати всі"></th>
+                  <th>ID Пошуку</th>
+                  <th>Дата запуску</th>
+                  <th>Запит</th>
+                  <th>Знайдено</th>
+                  <th>Назва компанії</th>
+                  <th>Email</th>
+                  <th>Веб-сайт</th>
+                  <th>Оптова ціна</th>
+                  <th>Мін. замовлення</th>
+                  <th>Статус листа</th>
+                  <th>Дата відправки</th>
+                  <th>Дата відповіді</th>
+                  <th>Текст відповіді</th>
+                  <th>Мова</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody">
+              </tbody>
+            </table>
+          </div>
+          <div id="results-empty" class="notice" style="display:none;">Дані ще не доступні. Запустіть пошук.</div>
         </div>
-        <div id="results-status" style="margin-top: 16px;"></div>
-        <div style="overflow-x: auto; margin-top: 16px;">
-          <table class="table history-table" id="history-table" style="min-width: 1200px;">
-            <thead>
-              <tr>
-                <th style="width: 40px;"><input type="checkbox" id="select-all" title="Вибрати всі"></th>
-                <th>ID Пошуку</th>
-                <th>Дата запуску</th>
-                <th>Запит</th>
-                <th>Знайдено</th>
-                <th>Назва компанії</th>
-                <th>Email</th>
-                <th>Статус листа</th>
-                <th>Дата відправки</th>
-                <th>Дата відповіді</th>
-                <th>Текст відповіді</th>
-                <th>Мова</th>
-              </tr>
-            </thead>
-            <tbody id="history-tbody">
-            </tbody>
-          </table>
+
+        <!-- Tab 2: Send History -->
+        <div id="send-history" class="tab-content" style="display:none;">
+          <div class="history-header">
+            <h2>Історія відправки листів</h2>
+          </div>
+          <div class="flex" style="align-items: flex-end; gap: 16px; margin-top: 16px;">
+            <div>
+              <button id="refreshSendHistoryBtn">Оновити</button>
+            </div>
+          </div>
+          <div id="send-status" style="margin-top: 16px;"></div>
+          <div style="overflow-x: auto; margin-top: 16px;">
+            <table class="table history-table" id="send-table" style="min-width: 100%; width: 100%;">
+              <thead>
+                <tr>
+                  <th>Дата запуску</th>
+                  <th>Назва компанії</th>
+                  <th>Email</th>
+                  <th>Статус</th>
+                  <th>Відправлено</th>
+                  <th>Відповідь отримана</th>
+                  <th>Текст відповіді</th>
+                  <th>Мова</th>
+                </tr>
+              </thead>
+              <tbody id="send-tbody">
+              </tbody>
+            </table>
+          </div>
+          <div id="send-empty" class="notice" style="display:none;">Листи ще не відправлялись.</div>
         </div>
-        <div id="results-empty" class="notice" style="display:none;">Дані ще не доступні. Запустіть пошук.</div>
       </section>
 
       <section class="card">
@@ -72,6 +121,19 @@
         <div class="modal-buttons">
           <button id="confirm-delete-btn" class="btn-danger">Видалити</button>
           <button id="cancel-delete-btn" class="btn-secondary">Скасувати</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="send-modal" class="modal" style="display:none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <h3>Підтвердження відправки листів</h3>
+        <p>Ви впевнені, що хочете відправити листи <strong><span id="send-modal-count"></span></strong> постачальникам?</p>
+        <p class="notice">Листи будуть відправлені згідно з налаштуваннями SendGrid (інтервал та ліміти).</p>
+        <div class="modal-buttons">
+          <button id="confirm-send-btn" class="btn-primary">Відправити</button>
+          <button id="cancel-send-btn" class="btn-secondary">Скасувати</button>
         </div>
       </div>
     </div>
