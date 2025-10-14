@@ -183,18 +183,6 @@ function attachCheckboxListeners() {
   });
 }
 
-function updateBulkDeleteButton() {
-  const btn = document.getElementById('bulk-delete-btn');
-  const count = document.getElementById('selected-count');
-
-  if (selectedSuppliers.size > 0) {
-    btn.style.display = 'inline-block';
-    count.textContent = selectedSuppliers.size;
-  } else {
-    btn.style.display = 'none';
-  }
-}
-
 function formatDate(dateString) {
   if (!dateString) return '-';
   try {
