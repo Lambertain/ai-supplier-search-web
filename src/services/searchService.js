@@ -1,6 +1,7 @@
 ﻿import { nanoid } from 'nanoid';
+import { z } from 'zod';
 import { buildSupplierSearchMessages, buildEmailWriterMessages } from './promptService.js';
-import { chatCompletionJson } from './openaiService.js';
+import { chatCompletionJson, chatCompletionWithWebSearch } from './openaiService.js';
 import { prepareSendGridEmail, sendSummaryEmail } from './sendgridService.js';
 import { validateSearchRequest, isBusinessEmail, normalizeWebsite, sanitizeString } from '../utils/validation.js';
 import { renderTemplate } from '../utils/template.js';
@@ -20,6 +21,38 @@ import {
   countEmailsSentSince,
   getLastEmailSend
 } from '../storage/searchStore.js';
+
+// Zod схема для валидации поставщика
+const SupplierSchema = z.object({
+  company_name: z.string()
+    .min(1, 'Company name is required')
+    .refine(
+      (name) => /\b(ltd|inc|corp|co|company|manufacturing|factory|group|industries)\b/i.test(name),
+      'Company name must contain business entity identifier (Ltd, Inc, Corp, etc.)'
+    ),
+  email: z.string()
+    .email('Invalid email format')
+    .refine(
+      (email) => isBusinessEmail(email),
+      'Email must be a business email (no Gmail, Outlook, Yahoo, etc.)'
+    ),
+  country: z.string().min(1, 'Country is required'),
+  website: z.string()
+    .optional()
+    .refine(
+      (website) => !website || /^https?:\/\//i.test(website) || /\./.test(website),
+      'Website must be a valid URL or domain'
+    ),
+  city: z.string().optional(),
+  phone: z.string().optional(),
+  manufacturing_capabilities: z.string().optional(),
+  capabilities: z.string().optional(),
+  production_capacity: z.string().optional(),
+  certifications: z.string().optional(),
+  years_in_business: z.string().optional(),
+  estimated_price_range: z.string().optional(),
+  minimum_order_quantity: z.string().optional()
+});
 
 function createSearchId() {
   return `SEARCH_${Date.now()}_${nanoid(6).toUpperCase()}`;
@@ -79,17 +112,45 @@ function validateSuppliers(candidates, searchContext) {
     throw new Error('OpenAI supplier output does not contain valid suppliers array');
   }
 
-  const filtered = supplierArray.filter((candidate) => {
-    const emailValid = isBusinessEmail(candidate.email);
-    const nameValid = Boolean(candidate.company_name) && /\b(ltd|inc|corp|co|company|manufacturing|factory|group|industries)\b/i.test(candidate.company_name);
-    const hasCountry = Boolean(candidate.country);
-    const website = candidate.website || '';
-    const websiteValid = !website || /^https?:\/\//i.test(website) || /\./.test(website);
-    return emailValid && nameValid && hasCountry && websiteValid;
+  // Валидация через Zod с детальными ошибками
+  const validationResults = supplierArray.map((candidate, index) => {
+    const result = SupplierSchema.safeParse(candidate);
+    return {
+      candidate,
+      index,
+      valid: result.success,
+      errors: result.success ? null : result.error.flatten()
+    };
   });
 
+  // Логируем все ошибки валидации для отладки
+  const invalid = validationResults.filter(r => !r.valid);
+  if (invalid.length > 0) {
+    console.warn(`[Validation] ${invalid.length} suppliers failed validation:`);
+    invalid.forEach((result, idx) => {
+      console.warn(`  Supplier ${result.index + 1}:`, {
+        company_name: result.candidate.company_name || 'MISSING',
+        email: result.candidate.email || 'MISSING',
+        errors: result.errors.fieldErrors
+      });
+    });
+  }
+
+  // Фильтруем только валидные поставщики
+  const filtered = validationResults
+    .filter(r => r.valid)
+    .map(r => r.candidate);
+
   if (!filtered.length) {
-    throw new Error('No valid business suppliers found. All suppliers failed validation.');
+    const errorDetails = invalid.slice(0, 3).map(r => ({
+      company: r.candidate.company_name || 'Unknown',
+      errors: Object.entries(r.errors.fieldErrors).map(([field, msgs]) => `${field}: ${msgs.join(', ')}`)
+    }));
+
+    throw new Error(
+      `No valid business suppliers found. All ${supplierArray.length} suppliers failed Zod validation.\n` +
+      `First 3 failures:\n${JSON.stringify(errorDetails, null, 2)}`
+    );
   }
 
   const { maxSuppliers } = searchContext.settings.searchConfig;
@@ -255,10 +316,11 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     preferredRegion: input.preferredRegion
   });
 
-  const supplierResponse = await chatCompletionJson({
-    model: settings.searchConfig.openaiModel || OPENAI_MODELS.SEARCH,
+  // Use gpt-4o-search-preview with web_search_options to find REAL suppliers from the internet
+  // Note: gpt-4o-search-preview does not support temperature parameter
+  const supplierResponse = await chatCompletionWithWebSearch({
     messages: searchMessages,
-    temperature: settings.searchConfig.temperature || TEMPERATURE.SEARCH,
+    searchContextSize: 'high', // Use maximum search context for finding suppliers
     maxTokens: MAX_TOKENS.SEARCH,
     signal,
     apiKey: settings.apiKeys?.openai || process.env.OPENAI_API_KEY
