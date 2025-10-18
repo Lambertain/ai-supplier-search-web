@@ -28,24 +28,6 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.delete('/:supplierId', async (req, res, next) => {
-  try {
-    await deleteSupplierById(req.params.supplierId);
-    res.json({ status: 'deleted' });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.delete('/:searchId/:supplierId', async (req, res, next) => {
-  try {
-    await deleteSupplier(req.params.searchId, req.params.supplierId);
-    res.json({ status: 'deleted' });
-  } catch (error) {
-    next(error);
-  }
-});
-
 router.get('/history', async (req, res, next) => {
   try {
     const history = await getSearchHistory();
@@ -69,6 +51,24 @@ router.delete('/suppliers/bulk', async (req, res, next) => {
       deleted: supplier_ids.length,
       message: `Видалено ${supplier_ids.length} постачальників`
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:supplierId', async (req, res, next) => {
+  try {
+    await deleteSupplierById(req.params.supplierId);
+    res.json({ status: 'deleted' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:searchId/:supplierId', async (req, res, next) => {
+  try {
+    await deleteSupplier(req.params.searchId, req.params.supplierId);
+    res.json({ status: 'deleted' });
   } catch (error) {
     next(error);
   }
