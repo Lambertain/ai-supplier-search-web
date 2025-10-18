@@ -1,5 +1,7 @@
 # AI Supplier Search Web App
 
+**🌐 Production URL:** https://web-production-e6172.up.railway.app/
+
 This project replicates the n8n workflow **supplier_search_sendgrid_production** as a web application that can be deployed to Railway. It offers two simple pages:
 
 - **Search**: launch supplier search jobs and inspect recent executions.
