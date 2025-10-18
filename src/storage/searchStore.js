@@ -409,7 +409,7 @@ export async function getSearchHistory() {
       s.id as search_id,
       s.created_at as search_date,
       COALESCE(s.product_description, s.query) as query,
-      COALESCE(s.supplier_count, 0)::integer as total_suppliers,
+      COALESCE(s.suppliers_validated, 0)::integer as total_suppliers,
       sup.id as supplier_id,
       sup.company_name,
       sup.email,
