@@ -4,6 +4,8 @@ import { buildSupplierSearchMessages, buildEmailWriterMessages } from './promptS
 import { chatCompletionJson, chatCompletionWithWebSearch } from './openaiService.js';
 import { prepareSendGridEmail, sendSummaryEmail } from './sendgridService.js';
 import { validateSearchRequest, isBusinessEmail, normalizeWebsite, sanitizeString } from '../utils/validation.js';
+import { filterSuppliersByWebsite } from '../utils/websiteValidator.js';
+import { verifySupplierContacts } from '../utils/contactVerifier.js';
 import { renderTemplate } from '../utils/template.js';
 import { renderSpintax } from '../utils/spintax.js';
 import { queueEmail, getDailyEmailStats } from '../queues/emailQueue.js';
@@ -121,7 +123,7 @@ function mapSupplierCandidate(candidate, index, searchContext) {
   };
 }
 
-function validateSuppliers(candidates, searchContext) {
+async function validateSuppliers(candidates, searchContext) {
   // Handle both array and object responses from OpenAI
   let supplierArray = candidates;
 
@@ -138,7 +140,7 @@ function validateSuppliers(candidates, searchContext) {
     throw new Error('OpenAI supplier output does not contain valid suppliers array');
   }
 
-  // Валидация через Zod с детальными ошибками
+  // Run Zod validation and capture detailed errors
   const validationResults = supplierArray.map((candidate, index) => {
     const result = SupplierSchema.safeParse(candidate);
     return {
@@ -149,11 +151,11 @@ function validateSuppliers(candidates, searchContext) {
     };
   });
 
-  // Логируем все ошибки валидации для отладки
+  // Log invalid suppliers for easier debugging
   const invalid = validationResults.filter(r => !r.valid);
   if (invalid.length > 0) {
-    console.warn(`[Validation] ${invalid.length} suppliers failed validation:`);
-    invalid.forEach((result, idx) => {
+    console.warn(`[Validation] ${invalid.length} suppliers failed schema validation:`);
+    invalid.forEach((result) => {
       console.warn(`  Supplier ${result.index + 1}:`, {
         company_name: result.candidate.company_name || 'MISSING',
         email: result.candidate.email || 'MISSING',
@@ -162,12 +164,12 @@ function validateSuppliers(candidates, searchContext) {
     });
   }
 
-  // Фильтруем только валидные поставщики
-  const filtered = validationResults
+  // Keep only candidates that passed validation
+  const schemaValid = validationResults
     .filter(r => r.valid)
     .map(r => r.candidate);
 
-  if (!filtered.length) {
+  if (!schemaValid.length) {
     const errorDetails = invalid.slice(0, 3).map(r => ({
       company: r.candidate.company_name || 'Unknown',
       errors: Object.entries(r.errors.fieldErrors).map(([field, msgs]) => `${field}: ${msgs.join(', ')}`)
@@ -179,8 +181,93 @@ function validateSuppliers(candidates, searchContext) {
     );
   }
 
-  const { maxSuppliers } = searchContext.settings.searchConfig;
-  return filtered.slice(0, maxSuppliers).map((candidate, index) => mapSupplierCandidate(candidate, index, searchContext));
+  // Next safeguard: ensure supplier websites respond over HTTP(S)
+  // If the entire batch fails here, continue with schema-valid results
+  console.log('[Validation] Starting website accessibility validation...');
+  const { valid: websiteValid, invalid: websiteInvalid } = await filterSuppliersByWebsite(schemaValid, true);
+
+  if (websiteValid.length === 0) {
+    console.warn('[Validation] WARNING: All suppliers have inaccessible websites, using schema-valid suppliers anyway');
+    // When nothing passes the web check, return the schema-valid fallback
+    // This keeps the workflow going while logging a warning
+    const { maxSuppliers } = searchContext.settings.searchConfig;
+    return schemaValid.slice(0, maxSuppliers).map((candidate, index) =>
+      mapSupplierCandidate(candidate, index, searchContext)
+    );
+  }
+
+  console.log(`[Validation] Website check results: ${websiteValid.length} accessible, ${websiteInvalid.length} inaccessible`);
+
+  // Record suppliers rejected for web accessibility issues
+  if (websiteInvalid.length > 0) {
+    await appendLog(searchContext.searchId, {
+      level: 'warn',
+      message: `Rejected ${websiteInvalid.length} suppliers due to inaccessible websites`,
+      context: {
+        rejected: websiteInvalid.map(s => ({
+          company: s.company_name,
+          website: s.website,
+          error: s.validation?.error
+        }))
+      }
+    });
+  }
+
+  const verificationOptions = {
+    concurrency: searchContext.settings.searchConfig?.contactVerificationConcurrency || 3,
+    timeout: searchContext.settings.searchConfig?.contactVerificationTimeoutMs || 12000
+  };
+
+  console.log('[Validation] Starting on-site contact verification...');
+  const { verified: contactVerified, rejected: contactRejected } = await verifySupplierContacts(
+    websiteValid,
+    verificationOptions
+  );
+
+  if (contactRejected.length > 0) {
+    await appendLog(searchContext.searchId, {
+      level: 'warn',
+      message: `Rejected ${contactRejected.length} suppliers without verifiable on-site contact details`,
+      context: {
+        rejected: contactRejected.slice(0, 10).map((item) => ({
+          company: item.supplier?.company_name || 'Unknown',
+          website: item.supplier?.website || null,
+          candidateEmail: item.evidence?.candidateEmail || null,
+          reason: item.reason || 'Unknown'
+        }))
+      }
+    });
+  }
+
+  if (!contactVerified.length) {
+    throw new Error('No suppliers passed contact verification. All candidates lacked verifiable on-site emails.');
+  }
+
+  const { maxSuppliers, minSuppliers } = searchContext.settings.searchConfig;
+  const finalSuppliers = contactVerified.slice(0, maxSuppliers).map((result, index) => {
+    const mapped = mapSupplierCandidate(result.supplier, index, searchContext);
+    mapped.metadata = {
+      ...mapped.metadata,
+      contactVerification: {
+        status: result.status,
+        evidence: result.evidence
+      }
+    };
+    return mapped;
+  });
+
+  if (minSuppliers && finalSuppliers.length < minSuppliers) {
+    await appendLog(searchContext.searchId, {
+      level: 'warn',
+      message: `Only ${finalSuppliers.length} suppliers passed strict verification (min requested ${minSuppliers})`,
+      context: {
+        requestedMin: minSuppliers,
+        obtained: finalSuppliers.length
+      }
+    });
+  }
+
+  return finalSuppliers;
 }
 
 function composeEmailContent({ emailJson, settings, supplier, searchContext }) {
@@ -352,7 +439,7 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     apiKey: settings.apiKeys?.openai || process.env.OPENAI_API_KEY
   });
 
-  const suppliers = validateSuppliers(supplierResponse, { settings, searchId });
+  const suppliers = await validateSuppliers(supplierResponse, { settings, searchId });
   await addSuppliersToSearch(searchId, suppliers);
   await appendLog(searchId, {
     message: LOG_MESSAGES.SUPPLIERS_VALIDATED(suppliers.length),
@@ -511,5 +598,6 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     emailResults
   };
 }
+
 
 
