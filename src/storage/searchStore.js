@@ -424,7 +424,7 @@ export async function getSearchHistory() {
       es.reply_text,
       es.reply_language
     FROM searches s
-    LEFT JOIN suppliers sup ON s.id = sup.search_id
+    INNER JOIN suppliers sup ON s.id = sup.search_id
     LEFT JOIN email_sends es ON sup.id = es.supplier_id
 
     UNION ALL
