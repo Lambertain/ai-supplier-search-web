@@ -23,6 +23,7 @@ import {
 } from '../storage/searchStore.js';
 
 // Zod схема для валидации поставщика
+// Note: OpenAI returns typed data, but we store as strings in the database
 const SupplierSchema = z.object({
   company_name: z.string()
     .min(1, 'Company name is required')
@@ -48,10 +49,23 @@ const SupplierSchema = z.object({
   manufacturing_capabilities: z.string().optional(),
   capabilities: z.string().optional(),
   production_capacity: z.string().optional(),
-  certifications: z.string().optional(),
-  years_in_business: z.string().optional(),
+  // OpenAI returns certifications as array of strings
+  certifications: z.union([
+    z.array(z.string()),
+    z.string()
+  ]).optional(),
+  // OpenAI returns years_in_business as number
+  years_in_business: z.union([
+    z.number().nonnegative(),
+    z.string()
+  ]).optional(),
   estimated_price_range: z.string().optional(),
-  minimum_order_quantity: z.string().optional()
+  // OpenAI returns minimum_order_quantity as number
+  // Using nonnegative to allow 0 (some suppliers have no MOQ)
+  minimum_order_quantity: z.union([
+    z.number().int().nonnegative(),
+    z.string()
+  ]).optional()
 });
 
 function createSearchId() {
@@ -64,6 +78,15 @@ function createSupplierId(index) {
 
 function mapSupplierCandidate(candidate, index, searchContext) {
   const timestamp = new Date().toISOString();
+
+  // Helper function to convert OpenAI typed data to string for database storage
+  const convertToString = (value) => {
+    if (value === null || value === undefined) return '';
+    if (Array.isArray(value)) return value.join(', '); // Convert array to comma-separated string
+    if (typeof value === 'number') return String(value); // Convert number to string
+    return String(value);
+  };
+
   return {
     id: createSupplierId(index),
     search_id: searchContext.searchId,
@@ -75,10 +98,13 @@ function mapSupplierCandidate(candidate, index, searchContext) {
     website: normalizeWebsite(candidate.website || ''),
     manufacturing_capabilities: sanitizeString(candidate.manufacturing_capabilities || candidate.capabilities || ''),
     production_capacity: sanitizeString(candidate.production_capacity || ''),
-    certifications: sanitizeString(candidate.certifications || ''),
-    years_in_business: sanitizeString(candidate.years_in_business || ''),
+    // Convert certifications array to comma-separated string
+    certifications: sanitizeString(convertToString(candidate.certifications)),
+    // Convert years_in_business number to string
+    years_in_business: sanitizeString(convertToString(candidate.years_in_business)),
     estimated_price_range: sanitizeString(candidate.estimated_price_range || ''),
-    minimum_order_quantity: sanitizeString(candidate.minimum_order_quantity || ''),
+    // Convert minimum_order_quantity number to string
+    minimum_order_quantity: sanitizeString(convertToString(candidate.minimum_order_quantity)),
     status: 'Pending Outreach',
     priority: index < 5 ? 'High' : 'Normal',
     created_at: timestamp,
