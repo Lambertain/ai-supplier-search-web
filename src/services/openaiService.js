@@ -1,12 +1,12 @@
-import { stripCodeFences } from './textHelpers.js';
+﻿import { stripCodeFences } from './textHelpers.js';
 import { withOpenAIRetry } from '../utils/retryHelper.js';
 import { ERROR_MESSAGES } from '../utils/messages.js';
 import pLimit from 'p-limit';
 
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
-// Rate limiter: максимум 5 одновременных запросов к OpenAI API
-// Это предотвращает перегрузку API и улучшает стабильность
+// Rate limiter: РјР°РєСЃРёРјСѓРј 5 РѕРґРЅРѕРІСЂРµРјРµРЅРЅС‹С… Р·Р°РїСЂРѕСЃРѕРІ Рє OpenAI API
+// Р­С‚Рѕ РїСЂРµРґРѕС‚РІСЂР°С‰Р°РµС‚ РїРµСЂРµРіСЂСѓР·РєСѓ API Рё СѓР»СѓС‡С€Р°РµС‚ СЃС‚Р°Р±РёР»СЊРЅРѕСЃС‚СЊ
 const openAILimiter = pLimit(5);
 
 function ensureApiKey(provided) {
@@ -18,21 +18,78 @@ function ensureApiKey(provided) {
 }
 
 /**
- * Извлекает JSON из ответа OpenAI, который может содержать markdown блоки или обычный текст
- * OpenAI web search часто оборачивает JSON в пояснительный текст вроде:
+ * РР·РІР»РµРєР°РµС‚ JSON РёР· РѕС‚РІРµС‚Р° OpenAI, РєРѕС‚РѕСЂС‹Р№ РјРѕР¶РµС‚ СЃРѕРґРµСЂР¶Р°С‚СЊ markdown Р±Р»РѕРєРё РёР»Рё РѕР±С‹С‡РЅС‹Р№ С‚РµРєСЃС‚
+ * OpenAI web search С‡Р°СЃС‚Рѕ РѕР±РѕСЂР°С‡РёРІР°РµС‚ JSON РІ РїРѕСЏСЃРЅРёС‚РµР»СЊРЅС‹Р№ С‚РµРєСЃС‚ РІСЂРѕРґРµ:
  * "Based on... ```json\n[...]\n```\n Please note..."
  *
- * @param {string} content - Контент ответа от OpenAI
- * @returns {object|array} - Распарсенный JSON объект или массив
- * @throws {Error} - Если не удалось извлечь или распарсить JSON
+ * @param {string} content - РљРѕРЅС‚РµРЅС‚ РѕС‚РІРµС‚Р° РѕС‚ OpenAI
+ * @returns {object|array} - Р Р°СЃРїР°СЂСЃРµРЅРЅС‹Р№ JSON РѕР±СЉРµРєС‚ РёР»Рё РјР°СЃСЃРёРІ
+ * @throws {Error} - Р•СЃР»Рё РЅРµ СѓРґР°Р»РѕСЃСЊ РёР·РІР»РµС‡СЊ РёР»Рё СЂР°СЃРїР°СЂСЃРёС‚СЊ JSON
  */
+function findBalancedJsonSegment(text, openChar, closeChar) {
+  const start = text.indexOf(openChar);
+  if (start === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === openChar) {
+      depth += 1;
+    } else if (char === closeChar) {
+      depth -= 1;
+      if (depth === 0) {
+        return text.substring(start, i + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function trimTrailingNonJson(content) {
+  if (!content) return content;
+  const trimmed = content.trim();
+  const lastBrace = trimmed.lastIndexOf('}');
+  const lastBracket = trimmed.lastIndexOf(']');
+  const cutoff = Math.max(lastBrace, lastBracket);
+  if (cutoff !== -1 && cutoff < trimmed.length - 1) {
+    return trimmed.substring(0, cutoff + 1);
+  }
+  return trimmed;
+}
+
 function extractJsonFromResponse(content) {
   console.log('[OpenAI] Starting JSON extraction, content length:', content.length);
   console.log('[OpenAI] First 200 chars:', content.substring(0, 200));
 
   let jsonContent = content;
 
-  // Попытка 1: Извлечь JSON из markdown кода блока ```json...```
+  // РџРѕРїС‹С‚РєР° 1: РР·РІР»РµС‡СЊ JSON РёР· markdown РєРѕРґР° Р±Р»РѕРєР° ```json...```
   const jsonStartMarker = '```json';
   const jsonEndMarker = '```';
   const startIndex = content.indexOf(jsonStartMarker);
@@ -52,26 +109,39 @@ function extractJsonFromResponse(content) {
       console.log('[OpenAI] Found opening marker but no closing marker');
     }
   } else {
-    console.log('[OpenAI] No markdown block found, trying regex');
+    console.log('[OpenAI] No markdown block found, scanning for JSON segment');
 
-    // Попытка 2: Найти JSON массив или объект с помощью regex
-    const jsonArrayMatch = content.match(/(\[\s*\{[\s\S]*\}\s*\])/);
-    const jsonObjectMatch = content.match(/(\{\s*"[\s\S]*\})/);
+    const balancedArray = findBalancedJsonSegment(content, '[', ']');
+    const balancedObject = findBalancedJsonSegment(content, '{', '}');
 
-    if (jsonArrayMatch) {
-      jsonContent = jsonArrayMatch[1];
-      console.log('[OpenAI] Extracted JSON array from text');
-    } else if (jsonObjectMatch) {
-      jsonContent = jsonObjectMatch[1];
-      console.log('[OpenAI] Extracted JSON object from text');
+    if (balancedArray) {
+      jsonContent = balancedArray;
+      console.log('[OpenAI] Extracted JSON array via balanced bracket scan');
+    } else if (balancedObject) {
+      jsonContent = balancedObject;
+      console.log('[OpenAI] Extracted JSON object via balanced bracket scan');
     } else {
-      // Попытка 3: Fallback к stripCodeFences для обратной совместимости
-      jsonContent = stripCodeFences(content);
-      console.log('[OpenAI] Using stripCodeFences fallback');
+      console.log('[OpenAI] Balanced scan failed, trying regex');
+
+      const jsonArrayMatch = content.match(/(\[\s*\{[\s\S]*\}\s*\])/);
+      const jsonObjectMatch = content.match(/(\{\s*"[\s\S]*\})/);
+
+      if (jsonArrayMatch) {
+        jsonContent = jsonArrayMatch[1];
+        console.log('[OpenAI] Extracted JSON array from text via regex');
+      } else if (jsonObjectMatch) {
+        jsonContent = jsonObjectMatch[1];
+        console.log('[OpenAI] Extracted JSON object from text via regex');
+      } else {
+        jsonContent = stripCodeFences(content);
+        console.log('[OpenAI] Using stripCodeFences fallback');
+      }
     }
   }
 
-  // Парсинг извлеченного JSON
+  jsonContent = trimTrailingNonJson(jsonContent);
+
+  // РџР°СЂСЃРёРЅРі РёР·РІР»РµС‡РµРЅРЅРѕРіРѕ JSON
   try {
     const parsed = JSON.parse(jsonContent);
     console.log('[OpenAI] Successfully parsed JSON response');
@@ -100,7 +170,7 @@ async function callOpenAI(body, signal, apiKeyOverride, timeoutMs = 60000) {
     timeout: timeoutMs
   });
 
-  // Rate-limited execution: максимум 5 одновременных запросов
+  // Rate-limited execution: РјР°РєСЃРёРјСѓРј 5 РѕРґРЅРѕРІСЂРµРјРµРЅРЅС‹С… Р·Р°РїСЂРѕСЃРѕРІ
   return openAILimiter(async () => {
     // Create timeout controller if no signal provided
     const controller = new AbortController();
@@ -183,11 +253,20 @@ export const chatCompletionJson = withOpenAIRetry(async function chatCompletionJ
     throw new Error('OpenAI response did not contain message content');
   }
   const normalized = stripCodeFences(content);
+  const cleaned = trimTrailingNonJson(normalized);
   try {
-    return JSON.parse(normalized);
+    return JSON.parse(cleaned);
   } catch (error) {
+    const balancedObject = findBalancedJsonSegment(cleaned, '{', '}');
+    if (balancedObject) {
+      try {
+        return JSON.parse(trimTrailingNonJson(balancedObject));
+      } catch (innerError) {
+        console.warn('[OpenAI] Secondary JSON parse attempt failed:', innerError.message);
+      }
+    }
     const err = new Error('Failed to parse JSON from OpenAI response');
-    err.raw = normalized;
+    err.raw = cleaned;
     throw err;
   }
 });
@@ -242,7 +321,7 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
     throw new Error('OpenAI response did not contain message content');
   }
 
-  // Извлечь и распарсить JSON из ответа
+  // РР·РІР»РµС‡СЊ Рё СЂР°СЃРїР°СЂСЃРёС‚СЊ JSON РёР· РѕС‚РІРµС‚Р°
   return extractJsonFromResponse(content);
 });
 
@@ -275,3 +354,6 @@ export async function listAvailableModels(apiKeyOverride) {
 
   return chatModels;
 }
+
+
+
