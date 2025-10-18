@@ -370,6 +370,10 @@ pre {
   background: var(--bg);
   font-weight: 600;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .history-table td {
@@ -383,6 +387,16 @@ pre {
   cursor: pointer;
   width: 18px;
   height: 18px;
+}
+
+/* Table wrapper with vertical scroll */
+.table-wrapper {
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: auto;
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
 
 /* Language flag display */

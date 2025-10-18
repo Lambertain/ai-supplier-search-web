@@ -50,7 +50,6 @@ function renderHistoryTable(data) {
       <td>${escapeHtml(row.search_id || '')}</td>
       <td>${formatDate(row.search_date)}</td>
       <td>${escapeHtml(row.query || '')}</td>
-      <td>${row.total_suppliers || 0}</td>
       <td>${escapeHtml(row.company_name || '-')}</td>
       <td>${escapeHtml(row.email || '-')}</td>
       <td>${row.website ? `<a href="${escapeHtml(row.website)}" target="_blank" rel="noopener">🔗 Сайт</a>` : '-'}</td>
