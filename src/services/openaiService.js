@@ -1,13 +1,48 @@
-﻿import { stripCodeFences } from './textHelpers.js';
+﻿import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { stripCodeFences } from './textHelpers.js';
 import { withOpenAIRetry } from '../utils/retryHelper.js';
 import { ERROR_MESSAGES } from '../utils/messages.js';
 import pLimit from 'p-limit';
 
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const LOGS_DIR = path.resolve(__dirname, '../../logs');
+
+
 // Rate limiter: РјР°РєСЃРёРјСѓРј 5 РѕРґРЅРѕРІСЂРµРјРµРЅРЅС‹С… Р·Р°РїСЂРѕСЃРѕРІ Рє OpenAI API
 // Р­С‚Рѕ РїСЂРµРґРѕС‚РІСЂР°С‰Р°РµС‚ РїРµСЂРµРіСЂСѓР·РєСѓ API Рё СѓР»СѓС‡С€Р°РµС‚ СЃС‚Р°Р±РёР»СЊРЅРѕСЃС‚СЊ
 const openAILimiter = pLimit(5);
+
+function persistOpenAIFailure(raw, original, context) {
+  try {
+    if (!raw && !original) {
+      return;
+    }
+
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const safeContext = (context || 'unknown').replace(/[^a-z0-9_-]/gi, '-');
+    const filename = `openai-failure-${safeContext}-${timestamp}.txt`;
+    const filepath = path.join(LOGS_DIR, filename);
+    const header = [
+      `Context: ${context || 'unknown'}`,
+      `Timestamp: ${new Date().toISOString()}`,
+      ''
+    ].join('\n');
+    const body = `${header}=== RAW ===\n${raw || '[none]'}\n\n=== ORIGINAL ===\n${original || '[none]'}\n`;
+
+    fs.writeFileSync(filepath, body, 'utf-8');
+    console.warn(`[OpenAI] Stored failed JSON payload to ${filepath}`);
+  } catch (error) {
+    console.warn('[OpenAI] Failed to persist JSON failure diagnostic:', error.message);
+  }
+}
+
 
 function ensureApiKey(provided) {
   const apiKey = provided || process.env.OPENAI_API_KEY;
@@ -354,6 +389,12 @@ export async function listAvailableModels(apiKeyOverride) {
 
   return chatModels;
 }
+
+
+
+
+
+
 
 
 
