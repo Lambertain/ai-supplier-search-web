@@ -258,47 +258,49 @@ async function loadGuidance() {
   }
 }
 
-document.getElementById('bulk-delete-btn').addEventListener('click', () => {
-  document.getElementById('delete-count').textContent = selectedSuppliers.size;
-  document.getElementById('delete-modal').style.display = 'flex';
-});
+function attachDeleteEventListeners() {
+  document.getElementById('bulk-delete-btn').addEventListener('click', () => {
+    document.getElementById('delete-count').textContent = selectedSuppliers.size;
+    document.getElementById('delete-modal').style.display = 'flex';
+  });
 
-document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
-  const supplierIds = Array.from(selectedSuppliers);
+  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    const supplierIds = Array.from(selectedSuppliers);
 
-  try {
-    const response = await fetch('/api/results/suppliers/bulk', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ supplier_ids: supplierIds })
-    });
+    try {
+      const response = await fetch('/api/results/suppliers/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supplier_ids: supplierIds })
+      });
 
-    if (response.ok) {
-      const result = await response.json();
-      selectedSuppliers.clear();
-      document.getElementById('delete-modal').style.display = 'none';
-      await loadSearchHistory();
-      alert(`Успішно видалено ${result.deleted} постачальників!`);
-    } else {
-      const error = await response.json();
-      alert('Помилка видалення: ' + (error.error || 'Unknown error'));
+      if (response.ok) {
+        const result = await response.json();
+        selectedSuppliers.clear();
+        document.getElementById('delete-modal').style.display = 'none';
+        await loadSearchHistory();
+        alert(`Успішно видалено ${result.deleted} постачальників!`);
+      } else {
+        const error = await response.json();
+        alert('Помилка видалення: ' + (error.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Помилка видалення');
     }
-  } catch (error) {
-    console.error('Delete error:', error);
-    alert('Помилка видалення');
-  }
-});
+  });
 
-document.getElementById('cancel-delete-btn').addEventListener('click', () => {
-  document.getElementById('delete-modal').style.display = 'none';
-});
+  document.getElementById('cancel-delete-btn').addEventListener('click', () => {
+    document.getElementById('delete-modal').style.display = 'none';
+  });
 
-document.getElementById('refreshBtn').addEventListener('click', () => {
-  selectedSuppliers.clear();
-  document.getElementById('select-all').checked = false;
-  updateBulkDeleteButton();
-  loadSearchHistory();
-});
+  document.getElementById('refreshBtn').addEventListener('click', () => {
+    selectedSuppliers.clear();
+    document.getElementById('select-all').checked = false;
+    updateBulkDeleteButton();
+    loadSearchHistory();
+  });
+}
 
 // Tab switching logic
 function initTabSwitching() {
@@ -414,55 +416,71 @@ function setSendStatus(message, type = 'info') {
 }
 
 // Send emails to selected suppliers
-document.getElementById('send-emails-btn')?.addEventListener('click', () => {
-  document.getElementById('send-modal-count').textContent = selectedSuppliers.size;
-  document.getElementById('send-modal').style.display = 'flex';
-});
+function attachSendEmailEventListeners() {
+  const sendEmailsBtn = document.getElementById('send-emails-btn');
+  const confirmSendBtn = document.getElementById('confirm-send-btn');
+  const cancelSendBtn = document.getElementById('cancel-send-btn');
+  const refreshSendHistoryBtn = document.getElementById('refreshSendHistoryBtn');
 
-document.getElementById('confirm-send-btn')?.addEventListener('click', async () => {
-  const supplierIds = Array.from(selectedSuppliers);
-
-  try {
-    setStatus('Відправка листів...', 'info');
-
-    const response = await fetch('/api/results/send-emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ supplier_ids: supplierIds })
+  if (sendEmailsBtn) {
+    sendEmailsBtn.addEventListener('click', () => {
+      document.getElementById('send-modal-count').textContent = selectedSuppliers.size;
+      document.getElementById('send-modal').style.display = 'flex';
     });
-
-    if (response.ok) {
-      const result = await response.json();
-      selectedSuppliers.clear();
-      document.getElementById('send-modal').style.display = 'none';
-      document.getElementById('select-all').checked = false;
-      updateBulkDeleteButton();
-
-      setStatus(`Листи успішно поставлені в чергу для відправки (${result.queued} шт.)`, 'success');
-
-      // Switch to send history tab and reload
-      document.querySelector('[data-tab="send-history"]').click();
-    } else {
-      const error = await response.json();
-      setStatus('Помилка відправки: ' + (error.error || 'Unknown error'), 'error');
-    }
-  } catch (error) {
-    console.error('Send error:', error);
-    setStatus('Помилка відправки листів', 'error');
   }
-});
 
-document.getElementById('cancel-send-btn')?.addEventListener('click', () => {
-  document.getElementById('send-modal').style.display = 'none';
-});
+  if (confirmSendBtn) {
+    confirmSendBtn.addEventListener('click', async () => {
+      const supplierIds = Array.from(selectedSuppliers);
 
-// Refresh send history button
-document.getElementById('refreshSendHistoryBtn')?.addEventListener('click', () => {
-  loadSendHistory();
-});
+      try {
+        setStatus('Відправка листів...', 'info');
+
+        const response = await fetch('/api/results/send-emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supplier_ids: supplierIds })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          selectedSuppliers.clear();
+          document.getElementById('send-modal').style.display = 'none';
+          document.getElementById('select-all').checked = false;
+          updateBulkDeleteButton();
+
+          setStatus(`Листи успішно поставлені в чергу для відправки (${result.queued} шт.)`, 'success');
+
+          // Switch to send history tab and reload
+          document.querySelector('[data-tab="send-history"]').click();
+        } else {
+          const error = await response.json();
+          setStatus('Помилка відправки: ' + (error.error || 'Unknown error'), 'error');
+        }
+      } catch (error) {
+        console.error('Send error:', error);
+        setStatus('Помилка відправки листів', 'error');
+      }
+    });
+  }
+
+  if (cancelSendBtn) {
+    cancelSendBtn.addEventListener('click', () => {
+      document.getElementById('send-modal').style.display = 'none';
+    });
+  }
+
+  if (refreshSendHistoryBtn) {
+    refreshSendHistoryBtn.addEventListener('click', () => {
+      loadSendHistory();
+    });
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabSwitching();
+  attachDeleteEventListeners();
+  attachSendEmailEventListeners();
   loadSearchHistory();
   loadGuidance();
 });
