@@ -79,6 +79,21 @@ function extractEmailDomain(email) {
   return parts.length === 2 ? parts[1] : '';
 }
 
+function domainsMatch(siteDomain, emailDomain) {
+  if (!siteDomain || !emailDomain) {
+    return false;
+  }
+
+  const site = siteDomain.toLowerCase();
+  const email = emailDomain.toLowerCase();
+
+  if (site === email) {
+    return true;
+  }
+
+  return email.endsWith(`.${site}`) || site.endsWith(`.${email}`);
+}
+
 function buildCandidateUrls(website, paths = DEFAULT_CONTACT_PATHS) {
   try {
     const parsed = new URL(website);
@@ -228,6 +243,8 @@ async function verifySupplierContactInternal(supplier, options) {
   let resolvedEmail = candidateEmail;
   let status = 'failed';
   let matchedSource = candidateEmail ? emailSources.get(candidateEmail) : null;
+  const candidateDomain = extractEmailDomain(candidateEmail);
+  const hasDomainMatch = domainsMatch(siteDomain, candidateDomain);
 
   if (candidateEmail && emailSources.has(candidateEmail)) {
     status = 'matched';
@@ -245,6 +262,27 @@ async function verifySupplierContactInternal(supplier, options) {
   }
 
   if (status === 'failed') {
+    if (candidateEmail && hasDomainMatch) {
+      return {
+        supplier: {
+          ...supplier,
+          email: candidateEmail
+        },
+        status: 'domain-fallback',
+        evidence: {
+          candidateEmail,
+          resolvedEmail: candidateEmail,
+          siteDomain,
+          emails,
+          phones,
+          fallbackReason: 'candidate-email-domain-match',
+          sources: serializeEmailSources(emailSources),
+          matchedSource: null,
+          pages: visited
+        }
+      };
+    }
+
     return {
       supplier,
       status,
