@@ -132,18 +132,17 @@ async function validateSuppliers(candidates, searchContext) {
     if (candidates && typeof candidates === 'object') {
       supplierArray = candidates.suppliers || candidates.data || candidates.results || [];
     } else {
-      // Add detailed logging before throwing the error
-      console.error('[Validation Error] OpenAI output was not an array or a valid object. Raw output:', JSON.stringify(candidates, null, 2));
-      throw new Error('OpenAI supplier output is not an array or valid object');
+      const rawOutput = JSON.stringify(candidates, null, 2);
+      console.error('[Validation Error] OpenAI output was not an array or a valid object. Raw output:', rawOutput);
+      throw new Error(`OpenAI supplier output is not an array or valid object. Raw AI Response: ${rawOutput}`);
     }
   }
 
   if (!Array.isArray(supplierArray) || supplierArray.length === 0) {
-    // Add detailed logging before throwing the error
-    console.error('[Validation Error] OpenAI output does not contain a valid suppliers array. Raw output:', JSON.stringify(candidates, null, 2));
-    throw new Error('OpenAI supplier output does not contain valid suppliers array');
+    const rawOutput = JSON.stringify(candidates, null, 2);
+    console.error('[Validation Error] OpenAI output does not contain a valid suppliers array. Raw output:', rawOutput);
+    throw new Error(`OpenAI supplier output does not contain valid suppliers array. Raw AI Response: ${rawOutput}`);
   }
-
   // Run Zod validation and capture detailed errors
   const validationResults = supplierArray.map((candidate, index) => {
     const result = SupplierSchema.safeParse(candidate);
