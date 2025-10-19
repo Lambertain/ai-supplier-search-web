@@ -17,182 +17,7 @@ const LOGS_DIR = path.resolve(__dirname, '../../logs');
 // Р­С‚Рѕ РїСЂРµРґРѕС‚РІСЂР°С‰Р°РµС‚ РїРµСЂРµРіСЂСѓР·РєСѓ API Рё СѓР»СѓС‡С€Р°РµС‚ СЃС‚Р°Р±РёР»СЊРЅРѕСЃС‚СЊ
 const openAILimiter = pLimit(5);
 
-function persistOpenAIFailure(raw, original, context) {
-  try {
-    if (!raw && !original) {
-      return;
-    }
 
-    fs.mkdirSync(LOGS_DIR, { recursive: true });
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const safeContext = (context || 'unknown').replace(/[^a-z0-9_-]/gi, '-');
-    const filename = `openai-failure-${safeContext}-${timestamp}.txt`;
-    const filepath = path.join(LOGS_DIR, filename);
-    const header = [
-      `Context: ${context || 'unknown'}`,
-      `Timestamp: ${new Date().toISOString()}`,
-      ''
-    ].join('\n');
-    const body = `${header}=== RAW ===\n${raw || '[none]'}\n\n=== ORIGINAL ===\n${original || '[none]'}\n`;
-
-    fs.writeFileSync(filepath, body, 'utf-8');
-    console.warn(`[OpenAI] Stored failed JSON payload to ${filepath}`);
-  } catch (error) {
-    console.warn('[OpenAI] Failed to persist JSON failure diagnostic:', error.message);
-  }
-}
-
-
-function ensureApiKey(provided) {
-  const apiKey = provided || process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(ERROR_MESSAGES.OPENAI_KEY_MISSING);
-  }
-  return apiKey;
-}
-
-/**
- * РР·РІР»РµРєР°РµС‚ JSON РёР· РѕС‚РІРµС‚Р° OpenAI, РєРѕС‚РѕСЂС‹Р№ РјРѕР¶РµС‚ СЃРѕРґРµСЂР¶Р°С‚СЊ markdown Р±Р»РѕРєРё РёР»Рё РѕР±С‹С‡РЅС‹Р№ С‚РµРєСЃС‚
- * OpenAI web search С‡Р°СЃС‚Рѕ РѕР±РѕСЂР°С‡РёРІР°РµС‚ JSON РІ РїРѕСЏСЃРЅРёС‚РµР»СЊРЅС‹Р№ С‚РµРєСЃС‚ РІСЂРѕРґРµ:
- * "Based on... ```json\n[...]\n```\n Please note..."
- *
- * @param {string} content - РљРѕРЅС‚РµРЅС‚ РѕС‚РІРµС‚Р° РѕС‚ OpenAI
- * @returns {object|array} - Р Р°СЃРїР°СЂСЃРµРЅРЅС‹Р№ JSON РѕР±СЉРµРєС‚ РёР»Рё РјР°СЃСЃРёРІ
- * @throws {Error} - Р•СЃР»Рё РЅРµ СѓРґР°Р»РѕСЃСЊ РёР·РІР»РµС‡СЊ РёР»Рё СЂР°СЃРїР°СЂСЃРёС‚СЊ JSON
- */
-function findBalancedJsonSegment(text, openChar, closeChar) {
-  const start = text.indexOf(openChar);
-  if (start === -1) {
-    return null;
-  }
-
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-
-  for (let i = start; i < text.length; i += 1) {
-    const char = text[i];
-
-    if (escape) {
-      escape = false;
-      continue;
-    }
-
-    if (char === '\\') {
-      escape = true;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-
-    if (inString) {
-      continue;
-    }
-
-    if (char === openChar) {
-      depth += 1;
-    } else if (char === closeChar) {
-      depth -= 1;
-      if (depth === 0) {
-        return text.substring(start, i + 1);
-      }
-    }
-  }
-
-  return null;
-}
-
-function trimTrailingNonJson(content) {
-  if (!content) return content;
-  const trimmed = content.trim();
-  const lastBrace = trimmed.lastIndexOf('}');
-  const lastBracket = trimmed.lastIndexOf(']');
-  const cutoff = Math.max(lastBrace, lastBracket);
-  if (cutoff !== -1 && cutoff < trimmed.length - 1) {
-    return trimmed.substring(0, cutoff + 1);
-  }
-  return trimmed;
-}
-
-function extractJsonFromResponse(content) {
-  console.log('[OpenAI] Starting JSON extraction, content length:', content.length);
-  console.log('[OpenAI] First 200 chars:', content.substring(0, 200));
-
-  let jsonContent = content;
-
-  // РџРѕРїС‹С‚РєР° 1: РР·РІР»РµС‡СЊ JSON РёР· markdown РєРѕРґР° Р±Р»РѕРєР° ```json...```
-  const jsonStartMarker = '```json';
-  const jsonEndMarker = '```';
-  const startIndex = content.indexOf(jsonStartMarker);
-
-  console.log('[OpenAI] indexOf jsonStartMarker result:', startIndex);
-
-  if (startIndex !== -1) {
-    const jsonStart = startIndex + jsonStartMarker.length;
-    const endIndex = content.indexOf(jsonEndMarker, jsonStart);
-    console.log('[OpenAI] indexOf jsonEndMarker result:', endIndex);
-
-    if (endIndex !== -1) {
-      jsonContent = content.substring(jsonStart, endIndex).trim();
-      console.log('[OpenAI] Extracted JSON from markdown code block, length:', jsonContent.length);
-      console.log('[OpenAI] Extracted content first 200 chars:', jsonContent.substring(0, 200));
-    } else {
-      console.log('[OpenAI] Found opening marker but no closing marker');
-    }
-  } else {
-    console.log('[OpenAI] No markdown block found, scanning for JSON segment');
-
-    const balancedArray = findBalancedJsonSegment(content, '[', ']');
-    const balancedObject = findBalancedJsonSegment(content, '{', '}');
-
-    if (balancedArray) {
-      jsonContent = balancedArray;
-      console.log('[OpenAI] Extracted JSON array via balanced bracket scan');
-    } else if (balancedObject) {
-      jsonContent = balancedObject;
-      console.log('[OpenAI] Extracted JSON object via balanced bracket scan');
-    } else {
-      console.log('[OpenAI] Balanced scan failed, trying regex');
-
-      const jsonArrayMatch = content.match(/(\[\s*\{[\s\S]*\}\s*\])/);
-      const jsonObjectMatch = content.match(/(\{\s*"[\s\S]*\})/);
-
-      if (jsonArrayMatch) {
-        jsonContent = jsonArrayMatch[1];
-        console.log('[OpenAI] Extracted JSON array from text via regex');
-      } else if (jsonObjectMatch) {
-        jsonContent = jsonObjectMatch[1];
-        console.log('[OpenAI] Extracted JSON object from text via regex');
-      } else {
-        jsonContent = stripCodeFences(content);
-        console.log('[OpenAI] Using stripCodeFences fallback');
-      }
-    }
-  }
-
-  jsonContent = trimTrailingNonJson(jsonContent);
-
-  // РџР°СЂСЃРёРЅРі РёР·РІР»РµС‡РµРЅРЅРѕРіРѕ JSON
-  try {
-    const parsed = JSON.parse(jsonContent);
-    console.log('[OpenAI] Successfully parsed JSON response');
-    return parsed;
-  } catch (error) {
-    console.error('[OpenAI] JSON parsing failed:', {
-      error: error.message,
-      extractedContent: jsonContent.substring(0, 500),
-      originalContent: content.substring(0, 500)
-    });
-    const err = new Error('Failed to parse JSON from OpenAI response');
-    err.raw = jsonContent;
-    err.original = content;
-    throw err;
-  }
-}
 
 async function callOpenAI(body, signal, apiKeyOverride, timeoutMs = 60000) {
   const apiKey = ensureApiKey(apiKeyOverride);
@@ -345,6 +170,7 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
     model: 'gpt-4o-search-preview',
     messages,
     max_tokens: maxTokens,
+    response_format: { type: 'json_object' }, // Enforce JSON mode
     web_search_options: {
       search_context_size: searchContextSize
     }
@@ -356,8 +182,18 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
     throw new Error('OpenAI response did not contain message content');
   }
 
-  // РР·РІР»РµС‡СЊ Рё СЂР°СЃРїР°СЂСЃРёС‚СЊ JSON РёР· РѕС‚РІРµС‚Р°
-  return extractJsonFromResponse(content);
+  // Directly parse the JSON content since we are enforcing JSON mode
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('[OpenAI] JSON parsing failed even with JSON mode enforced:', {
+      error: error.message,
+      content: content.substring(0, 500)
+    });
+    const err = new Error('Failed to parse JSON from OpenAI response (JSON mode was active)');
+    err.raw = content;
+    throw err;
+  }
 });
 
 export async function listAvailableModels(apiKeyOverride) {
