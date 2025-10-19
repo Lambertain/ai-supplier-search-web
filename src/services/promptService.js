@@ -1,4 +1,4 @@
-﻿import { renderTemplate } from '../utils/template.js';
+import { renderTemplate } from '../utils/template.js';
 import { sanitizeString } from '../utils/validation.js';
 
 /**
@@ -49,7 +49,41 @@ Global search - no geographic restrictions. Find best suppliers worldwide based 
   return regionMap[region] || regionMap.china;
 }
 
-function getFewShotExample() {\n  return `\n**EXAMPLE:**\n\n*USER REQUEST:*\n\`\`\`\nFind 5-7 suppliers of custom-molded plastic enclosures for IoT devices, ABS plastic, IP67 rating in China.\n\`\`\`\n\n*AI RESPONSE (JSON ONLY):*\n\`\`\`json\n[\n  {\n    \"company_name\": \"Shenzhen ABC Plastics Co., Ltd.\",\n    \"email\": \"sales@abc-plastics.com\",\n    \"country\": \"China\",\n    \"website\": \"https://www.abc-plastics.com\",\n    \"phone\": \"+86-755-12345678\",\n    \"manufacturing_capabilities\": \"Custom injection molding, ABS, PC, IP67 enclosures\"\n  },\n  {\n    \"company_name\": \"Dongguan XYZ Molding Factory\",\n    \"email\": \"info@xyz-molding.cn\",\n    \"country\": \"China\",\n    \"website\": \"https://www.xyz-molding.cn\",\n    \"phone\": \"+86-769-87654321\",\n    \"manufacturing_capabilities\": \"ABS plastic enclosures, ultrasonic welding, IP-rated housings\"\n  }\n]\n\`\`\`\n**END OF EXAMPLE**\n`;\n}\n\nfunction buildSupplierBlock(supplier) {
+function getFewShotExample() {
+  return `
+**EXAMPLE:**
+
+*USER REQUEST:*
+\`\`\`
+Find 5-7 suppliers of custom-molded plastic enclosures for IoT devices, ABS plastic, IP67 rating in China.
+\`\`\`
+
+*AI RESPONSE (JSON ONLY):*
+\`\`\`json
+[
+  {
+    "company_name": "Shenzhen ABC Plastics Co., Ltd.",
+    "email": "sales@abc-plastics.com",
+    "country": "China",
+    "website": "https://www.abc-plastics.com",
+    "phone": "+86-755-12345678",
+    "manufacturing_capabilities": "Custom injection molding, ABS, PC, IP67 enclosures"
+  },
+  {
+    "company_name": "Dongguan XYZ Molding Factory",
+    "email": "info@xyz-molding.cn",
+    "country": "China",
+    "website": "https://www.xyz-molding.cn",
+    "phone": "+86-769-87654321",
+    "manufacturing_capabilities": "ABS plastic enclosures, ultrasonic welding, IP-rated housings"
+  }
+]
+\`\`\`
+**END OF EXAMPLE**
+`;
+}
+
+function buildSupplierBlock(supplier) {
   return [
     '**SUPPLIER INFORMATION:**',
     `- Company: ${supplier.company_name || supplier.companyName || 'Unknown'}`,
