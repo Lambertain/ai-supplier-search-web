@@ -49,7 +49,7 @@ Global search - no geographic restrictions. Find best suppliers worldwide based 
   return regionMap[region] || regionMap.china;
 }
 
-function buildSupplierBlock(supplier) {
+function getFewShotExample() {\n  return `\n**EXAMPLE:**\n\n*USER REQUEST:*\n\`\`\`\nFind 5-7 suppliers of custom-molded plastic enclosures for IoT devices, ABS plastic, IP67 rating in China.\n\`\`\`\n\n*AI RESPONSE (JSON ONLY):*\n\`\`\`json\n[\n  {\n    \"company_name\": \"Shenzhen ABC Plastics Co., Ltd.\",\n    \"email\": \"sales@abc-plastics.com\",\n    \"country\": \"China\",\n    \"website\": \"https://www.abc-plastics.com\",\n    \"phone\": \"+86-755-12345678\",\n    \"manufacturing_capabilities\": \"Custom injection molding, ABS, PC, IP67 enclosures\"\n  },\n  {\n    \"company_name\": \"Dongguan XYZ Molding Factory\",\n    \"email\": \"info@xyz-molding.cn\",\n    \"country\": \"China\",\n    \"website\": \"https://www.xyz-molding.cn\",\n    \"phone\": \"+86-769-87654321\",\n    \"manufacturing_capabilities\": \"ABS plastic enclosures, ultrasonic welding, IP-rated housings\"\n  }\n]\n\`\`\`\n**END OF EXAMPLE**\n`;\n}\n\nfunction buildSupplierBlock(supplier) {
   return [
     '**SUPPLIER INFORMATION:**',
     `- Company: ${supplier.company_name || supplier.companyName || 'Unknown'}`,
@@ -81,6 +81,7 @@ export function buildSupplierSearchMessages(settings, input) {
 
   // Get region-specific instructions
   const regionInstructions = getRegionInstructions(input.preferredRegion || 'china');
+  const fewShotExample = getFewShotExample(); // Get the new few-shot example
 
   const variables = {
     minSuppliers: searchConfig.minSuppliers,
@@ -92,7 +93,8 @@ export function buildSupplierSearchMessages(settings, input) {
     region_instructions: regionInstructions
   };
 
-  const system = prompts.supplierSearchSystem;
+  // Prepend the few-shot example to the system prompt
+  const system = fewShotExample + '\n\n' + prompts.supplierSearchSystem;
   const user = renderTemplate(prompts.supplierSearchUser, variables);
   return [
     { role: 'system', content: system },

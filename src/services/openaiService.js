@@ -27,6 +27,137 @@ function ensureApiKey(provided) {
   return apiKey;
 }
 
+function findBalancedJsonSegment(text, openChar, closeChar) {
+  const start = text.indexOf(openChar);
+  if (start === -1) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === openChar) {
+      depth += 1;
+    } else if (char === closeChar) {
+      depth -= 1;
+      if (depth === 0) {
+        return text.substring(start, i + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function trimTrailingNonJson(content) {
+  if (!content) return content;
+  const trimmed = content.trim();
+  const lastBrace = trimmed.lastIndexOf('}');
+  const lastBracket = trimmed.lastIndexOf(']');
+  const cutoff = Math.max(lastBrace, lastBracket);
+  if (cutoff !== -1 && cutoff < trimmed.length - 1) {
+    return trimmed.substring(0, cutoff + 1);
+  }
+  return trimmed;
+}
+
+function extractJsonFromResponse(content) {
+  console.log('[OpenAI] Starting JSON extraction, content length:', content.length);
+  console.log('[OpenAI] First 200 chars:', content.substring(0, 200));
+
+  let jsonContent = content;
+
+  const jsonStartMarker = '```json';
+  const jsonEndMarker = '```';
+  const startIndex = content.indexOf(jsonStartMarker);
+
+  console.log('[OpenAI] indexOf jsonStartMarker result:', startIndex);
+
+  if (startIndex !== -1) {
+    const jsonStart = startIndex + jsonStartMarker.length;
+    const endIndex = content.indexOf(jsonEndMarker, jsonStart);
+    console.log('[OpenAI] indexOf jsonEndMarker result:', endIndex);
+
+    if (endIndex !== -1) {
+      jsonContent = content.substring(jsonStart, endIndex).trim();
+      console.log('[OpenAI] Extracted JSON from markdown code block, length:', jsonContent.length);
+      console.log('[OpenAI] Extracted content first 200 chars:', jsonContent.substring(0, 200));
+    } else {
+      console.log('[OpenAI] Found opening marker but no closing marker');
+    }
+  } else {
+    console.log('[OpenAI] No markdown block found, scanning for JSON segment');
+
+    const balancedArray = findBalancedJsonSegment(content, '[', ']');
+    const balancedObject = findBalancedJsonSegment(content, '{', '}');
+
+    if (balancedArray) {
+      jsonContent = balancedArray;
+      console.log('[OpenAI] Extracted JSON array via balanced bracket scan');
+    } else if (balancedObject) {
+      jsonContent = balancedObject;
+      console.log('[OpenAI] Extracted JSON object via balanced bracket scan');
+    } else {
+      console.log('[OpenAI] Balanced scan failed, trying regex');
+
+      const jsonArrayMatch = content.match(/(\[\s*\{[\s\S]*\}\s*\])/);
+      const jsonObjectMatch = content.match(/(\{\s*"[\s\S]*\})/);
+
+      if (jsonArrayMatch) {
+        jsonContent = jsonArrayMatch[1];
+        console.log('[OpenAI] Extracted JSON array from text via regex');
+      } else if (jsonObjectMatch) {
+        jsonContent = jsonObjectMatch[1];
+        console.log('[OpenAI] Extracted JSON object from text via regex');
+      } else {
+        jsonContent = stripCodeFences(content);
+        console.log('[OpenAI] Using stripCodeFences fallback');
+      }
+    }
+  }
+
+  jsonContent = trimTrailingNonJson(jsonContent);
+
+  try {
+    const parsed = JSON.parse(jsonContent);
+    console.log('[OpenAI] Successfully parsed JSON response');
+    return parsed;
+  } catch (error) {
+    console.error('[OpenAI] JSON parsing failed:', {
+      error: error.message,
+      extractedContent: jsonContent.substring(0, 500),
+      originalContent: content.substring(0, 500)
+    });
+    const err = new Error('Failed to parse JSON from OpenAI response');
+    err.raw = jsonContent;
+    err.original = content;
+    throw err;
+  }
+}
+
 async function callOpenAI(body, signal, apiKeyOverride, timeoutMs = 60000) {
   const apiKey = ensureApiKey(apiKeyOverride);
 
@@ -178,7 +309,6 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
     model: 'gpt-4o-search-preview',
     messages,
     max_tokens: maxTokens,
-    response_format: { type: 'json_object' }, // Enforce JSON mode
     web_search_options: {
       search_context_size: searchContextSize
     }
@@ -190,18 +320,8 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
     throw new Error('OpenAI response did not contain message content');
   }
 
-  // Directly parse the JSON content since we are enforcing JSON mode
-  try {
-    return JSON.parse(content);
-  } catch (error) {
-    console.error('[OpenAI] JSON parsing failed even with JSON mode enforced:', {
-      error: error.message,
-      content: content.substring(0, 500)
-    });
-    const err = new Error('Failed to parse JSON from OpenAI response (JSON mode was active)');
-    err.raw = content;
-    throw err;
-  }
+  // Re-introduce the manual JSON extraction
+  return extractJsonFromResponse(content);
 });
 
 export async function listAvailableModels(apiKeyOverride) {
