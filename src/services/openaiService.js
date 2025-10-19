@@ -320,6 +320,9 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
     throw new Error('OpenAI response did not contain message content');
   }
 
+  // CRITICAL DEBUGGING STEP: Log the raw content from OpenAI
+  console.error('[DEBUG] Raw content from OpenAI before JSON extraction:', content);
+
   // Re-introduce the manual JSON extraction
   return extractJsonFromResponse(content);
 });
