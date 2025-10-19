@@ -19,6 +19,14 @@ const openAILimiter = pLimit(5);
 
 
 
+function ensureApiKey(provided) {
+  const apiKey = provided || process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error(ERROR_MESSAGES.OPENAI_KEY_MISSING);
+  }
+  return apiKey;
+}
+
 async function callOpenAI(body, signal, apiKeyOverride, timeoutMs = 60000) {
   const apiKey = ensureApiKey(apiKeyOverride);
 
