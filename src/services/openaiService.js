@@ -84,80 +84,6 @@ function trimTrailingNonJson(content) {
   return trimmed;
 }
 
-function extractJsonFromResponse(content) {
-  console.log('[OpenAI] Starting JSON extraction, content length:', content.length);
-  console.log('[OpenAI] First 200 chars:', content.substring(0, 200));
-
-  let jsonContent = content;
-
-  const jsonStartMarker = '```json';
-  const jsonEndMarker = '```';
-  const startIndex = content.indexOf(jsonStartMarker);
-
-  console.log('[OpenAI] indexOf jsonStartMarker result:', startIndex);
-
-  if (startIndex !== -1) {
-    const jsonStart = startIndex + jsonStartMarker.length;
-    const endIndex = content.indexOf(jsonEndMarker, jsonStart);
-    console.log('[OpenAI] indexOf jsonEndMarker result:', endIndex);
-
-    if (endIndex !== -1) {
-      jsonContent = content.substring(jsonStart, endIndex).trim();
-      console.log('[OpenAI] Extracted JSON from markdown code block, length:', jsonContent.length);
-      console.log('[OpenAI] Extracted content first 200 chars:', jsonContent.substring(0, 200));
-    } else {
-      console.log('[OpenAI] Found opening marker but no closing marker');
-    }
-  } else {
-    console.log('[OpenAI] No markdown block found, scanning for JSON segment');
-
-    const balancedArray = findBalancedJsonSegment(content, '[', ']');
-    const balancedObject = findBalancedJsonSegment(content, '{', '}');
-
-    if (balancedArray) {
-      jsonContent = balancedArray;
-      console.log('[OpenAI] Extracted JSON array via balanced bracket scan');
-    } else if (balancedObject) {
-      jsonContent = balancedObject;
-      console.log('[OpenAI] Extracted JSON object via balanced bracket scan');
-    } else {
-      console.log('[OpenAI] Balanced scan failed, trying regex');
-
-      const jsonArrayMatch = content.match(/(\[\s*\{[\s\S]*\}\s*\])/);
-      const jsonObjectMatch = content.match(/(\{\s*"[\s\S]*\})/);
-
-      if (jsonArrayMatch) {
-        jsonContent = jsonArrayMatch[1];
-        console.log('[OpenAI] Extracted JSON array from text via regex');
-      } else if (jsonObjectMatch) {
-        jsonContent = jsonObjectMatch[1];
-        console.log('[OpenAI] Extracted JSON object from text via regex');
-      } else {
-        jsonContent = stripCodeFences(content);
-        console.log('[OpenAI] Using stripCodeFences fallback');
-      }
-    }
-  }
-
-  jsonContent = trimTrailingNonJson(jsonContent);
-
-  try {
-    const parsed = JSON.parse(jsonContent);
-    console.log('[OpenAI] Successfully parsed JSON response');
-    return parsed;
-  } catch (error) {
-    console.error('[OpenAI] JSON parsing failed:', {
-      error: error.message,
-      extractedContent: jsonContent.substring(0, 500),
-      originalContent: content.substring(0, 500)
-    });
-    const err = new Error('Failed to parse JSON from OpenAI response');
-    err.raw = jsonContent;
-    err.original = content;
-    throw err;
-  }
-}
-
 async function callOpenAI(body, signal, apiKeyOverride, timeoutMs = 60000) {
   const apiKey = ensureApiKey(apiKeyOverride);
 
@@ -294,9 +220,9 @@ export const chatCompletionText = withOpenAIRetry(async function chatCompletionT
 });
 
 /**
- * Chat completion with web search capability
- * Uses OpenAI's gpt-4o-search-preview model with web_search_options to find REAL suppliers from the internet
- * Note: gpt-4o-search-preview does not support temperature or response_format parameters with web_search
+ * Chat completion for supplier search
+ * Uses OpenAI's gpt-4o model with response_format: json_object to find REAL suppliers from the internet
+ * Temperature set to 0.4 for balanced factual and creative search strategies
  */
 export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCompletionWithWebSearchInternal({
   messages,
@@ -306,12 +232,11 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
   apiKey
 }) {
   const payload = {
-    model: 'gpt-4o-search-preview',
+    model: 'gpt-4o',
     messages,
     max_tokens: maxTokens,
-    web_search_options: {
-      search_context_size: searchContextSize
-    }
+    temperature: 0.4,
+    response_format: { type: 'json_object' }
   };
 
   const result = await callOpenAI(payload, signal, apiKey);
@@ -320,11 +245,16 @@ export const chatCompletionWithWebSearch = withOpenAIRetry(async function chatCo
     throw new Error('OpenAI response did not contain message content');
   }
 
-  // CRITICAL DEBUGGING STEP: Log the raw content from OpenAI
-  console.error('[DEBUG] Raw content from OpenAI before JSON extraction:', content);
-
-  // Re-introduce the manual JSON extraction
-  return extractJsonFromResponse(content);
+  // Direct JSON parsing - response_format ensures valid JSON
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('[OpenAI] JSON parsing failed:', {
+      error: error.message,
+      content: content.substring(0, 500)
+    });
+    throw new Error('Failed to parse JSON from OpenAI response');
+  }
 });
 
 export async function listAvailableModels(apiKeyOverride) {
