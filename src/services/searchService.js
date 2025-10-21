@@ -4,6 +4,7 @@ import { buildSupplierSearchMessages, buildEmailWriterMessages } from './promptS
 import { chatCompletionJson, chatCompletionWithWebSearch } from './openaiService.js';
 import { searchSuppliers } from './googleSearchService.js';
 import { prepareSendGridEmail, sendSummaryEmail } from './sendgridService.js';
+import { enrichSuppliersWithContacts } from './contactScraperService.js';
 import { validateSearchRequest, isBusinessEmail, normalizeWebsite, sanitizeString } from '../utils/validation.js';
 import { filterSuppliersByWebsite } from '../utils/websiteValidator.js';
 import { verifySupplierContacts } from '../utils/contactVerifier.js';
@@ -503,7 +504,18 @@ Return ONLY suppliers that match the product requirements. Prioritize results wi
     suppliersCount: structuredSuppliers.suppliers?.length || 0
   });
 
-  return structuredSuppliers;
+  // Step 7: Enrich suppliers with contact information via web scraping
+  console.log('[SearchService] Enriching suppliers with contact information from websites');
+
+  const enrichedSuppliers = await enrichSuppliersWithContacts(structuredSuppliers.suppliers || []);
+
+  console.log('[SearchService] Contact enrichment completed:', {
+    suppliersCount: enrichedSuppliers.length,
+    withEmail: enrichedSuppliers.filter(s => s.email).length,
+    withPhone: enrichedSuppliers.filter(s => s.phone).length
+  });
+
+  return { suppliers: enrichedSuppliers };
 }
 
 export async function runSupplierSearch(payload, settings, { signal } = {}) {
