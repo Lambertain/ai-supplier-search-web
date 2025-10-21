@@ -115,7 +115,6 @@ export function buildSupplierSearchMessages(settings, input) {
 
   // Get region-specific instructions
   const regionInstructions = getRegionInstructions(input.preferredRegion || 'china');
-  const fewShotExample = getFewShotExample(); // Get the new few-shot example
 
   const variables = {
     minSuppliers: searchConfig.minSuppliers,
@@ -127,8 +126,8 @@ export function buildSupplierSearchMessages(settings, input) {
     region_instructions: regionInstructions
   };
 
-  // Prepend the few-shot example to the system prompt
-  const system = fewShotExample + '\n\n' + prompts.supplierSearchSystem;
+  // Use system prompt directly (few-shot removed to avoid format conflicts)
+  const system = prompts.supplierSearchSystem;
   const user = renderTemplate(prompts.supplierSearchUser, variables);
   return [
     { role: 'system', content: system },

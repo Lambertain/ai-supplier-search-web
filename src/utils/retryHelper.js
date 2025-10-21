@@ -77,6 +77,22 @@ export function withRetry(fn, config = RETRY_CONFIG.openai) {
         } catch (error) {
           // If error is not retryable, throw AbortError to stop retrying
           if (!isRetryableError(error)) {
+            // Log full error details before throwing AbortError
+            console.error('[Retry] Non-retryable error details:', {
+              message: error.message,
+              status: error.status,
+              code: error.code,
+              name: error.name,
+              payload: JSON.stringify(error.payload || {}, null, 2),
+              fullError: error
+            });
+            logger.error('[Retry] Non-retryable error encountered', {
+              message: error.message,
+              status: error.status,
+              code: error.code,
+              payload: error.payload,
+              stack: error.stack
+            });
             throw new AbortError(error.message);
           }
           throw error;

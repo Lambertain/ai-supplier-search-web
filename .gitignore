@@ -37,3 +37,9 @@ pids/
 *.pid
 *.seed
 *.pid.lock
+
+# Test files with secrets
+test-sendgrid.js
+
+# Windows artifacts
+nul
