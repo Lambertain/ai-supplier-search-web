@@ -14,6 +14,7 @@ import { ERROR_MESSAGES, LOG_MESSAGES } from '../utils/messages.js';
 import { OPENAI_MODELS, MAX_TOKENS, TEMPERATURE } from '../config/constants.js';
 import { getLanguageForCountry } from '../utils/languageMap.js';
 import { recordSearch, recordEmail } from '../utils/metrics.js';
+import { prepareSearchQuery } from './translationService.js';
 import {
   createSearchRecord,
   addSuppliersToSearch,
@@ -400,12 +401,26 @@ async function queueEmailForSupplier({ supplier, emailContent, settings, searchC
 async function searchSuppliersWithGoogleAndGPT({ input, settings, signal }) {
   console.log('[SearchService] Starting Google Search + GPT structuring pipeline');
 
-  // Step 1: Build Google Search query from product description
-  const searchQuery = `${input.productDescription} supplier manufacturer ${input.preferredRegion || 'china'} B2B wholesale`;
+  // Step 1: Translate product description to search language for region
+  const translationResult = await prepareSearchQuery(
+    input.productDescription,
+    input.preferredRegion || 'china',
+    settings.apiKeys?.openai || process.env.OPENAI_API_KEY
+  );
+
+  console.log('[SearchService] Translation:', {
+    wasTranslated: translationResult.wasTranslated,
+    language: translationResult.language,
+    original: input.productDescription.substring(0, 80),
+    translated: translationResult.translated.substring(0, 80)
+  });
+
+  // Step 2: Build Google Search query using translated description
+  const searchQuery = `${translationResult.translated} supplier manufacturer ${input.preferredRegion || 'china'} B2B wholesale`;
 
   console.log('[SearchService] Google Search query:', searchQuery.substring(0, 150));
 
-  // Step 2: Execute Google Search to get REAL supplier websites
+  // Step 3: Execute Google Search to get REAL supplier websites
   const googleResults = await searchSuppliers({
     query: searchQuery,
     maxResults: Math.min(settings.searchConfig?.maxSuppliers * 2 || 20, 30), // Get 2x more results for filtering
@@ -416,7 +431,7 @@ async function searchSuppliersWithGoogleAndGPT({ input, settings, signal }) {
 
   console.log('[SearchService] Google Search returned', googleResults.length, 'results');
 
-  // Step 3: Prepare structured context for GPT to process Google results
+  // Step 4: Prepare structured context for GPT to process Google results
   const googleResultsContext = googleResults.map((result, index) => ({
     index: index + 1,
     title: result.title,
@@ -425,7 +440,7 @@ async function searchSuppliersWithGoogleAndGPT({ input, settings, signal }) {
     displayLink: result.displayLink
   }));
 
-  // Step 4: Build GPT prompt to structure Google results into supplier format
+  // Step 5: Build GPT prompt to structure Google results into supplier format
   const structuringPrompt = {
     role: 'system',
     content: `You are a procurement assistant that structures supplier information from Google Search results.
@@ -472,7 +487,7 @@ ${JSON.stringify(googleResultsContext, null, 2)}
 Return ONLY suppliers that match the product requirements. Prioritize results with clear B2B/manufacturer indicators.`
   };
 
-  // Step 5: Call GPT to structure Google results (NOT to generate suppliers)
+  // Step 6: Call GPT to structure Google results (NOT to generate suppliers)
   console.log('[SearchService] Sending Google results to GPT for structuring');
 
   const structuredSuppliers = await chatCompletionJson({
