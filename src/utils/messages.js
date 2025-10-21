@@ -8,6 +8,8 @@
 export const ERROR_MESSAGES = {
   OPENAI_KEY_MISSING: 'OpenAI API key is not configured. Add it in settings or via environment variable.',
   SENDGRID_KEY_MISSING: 'SendGrid API key is not configured. Add it in settings or via environment variable.',
+  GOOGLE_API_KEY_MISSING: 'Google API key is not configured. Add GOOGLE_API_KEY in settings or via environment variable.',
+  GOOGLE_SEARCH_ENGINE_ID_MISSING: 'Google Search Engine ID is not configured. Add GOOGLE_SEARCH_ENGINE_ID in settings or via environment variable.',
   DAILY_LIMIT_REACHED: 'Daily email limit reached. Try again tomorrow.',
   INVALID_REQUEST: 'Invalid request parameters'
 };

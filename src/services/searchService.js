@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { buildSupplierSearchMessages, buildEmailWriterMessages } from './promptService.js';
 import { chatCompletionJson, chatCompletionWithWebSearch } from './openaiService.js';
+import { searchSuppliers } from './googleSearchService.js';
 import { prepareSendGridEmail, sendSummaryEmail } from './sendgridService.js';
 import { validateSearchRequest, isBusinessEmail, normalizeWebsite, sanitizeString } from '../utils/validation.js';
 import { filterSuppliersByWebsite } from '../utils/websiteValidator.js';
@@ -185,15 +186,16 @@ async function validateSuppliers(candidates, searchContext) {
   }
 
   // Next safeguard: ensure supplier websites respond over HTTP(S)
-  // If the entire batch fails here, continue with schema-valid results
+  // If insufficient suppliers pass web check, combine with schema-valid results
   console.log('[Validation] Starting website accessibility validation...');
   const { valid: websiteValid, invalid: websiteInvalid } = await filterSuppliersByWebsite(schemaValid, true);
 
-  if (websiteValid.length === 0) {
-    console.warn('[Validation] WARNING: All suppliers have inaccessible websites, using schema-valid suppliers anyway');
-    // When nothing passes the web check, return the schema-valid fallback
-    // This keeps the workflow going while logging a warning
-    const { maxSuppliers } = searchContext.settings.searchConfig;
+  const { maxSuppliers, minSuppliers } = searchContext.settings.searchConfig;
+
+  // If we have insufficient suppliers after website validation, use schema-valid fallback
+  if (websiteValid.length < minSuppliers) {
+    console.warn(`[Validation] WARNING: Only ${websiteValid.length} suppliers passed website check (minimum: ${minSuppliers}). Using all ${schemaValid.length} schema-valid suppliers.`);
+    // Return all schema-valid suppliers to meet minimum requirement
     return schemaValid.slice(0, maxSuppliers).map((candidate, index) =>
       mapSupplierCandidate(candidate, index, searchContext)
     );
@@ -216,44 +218,45 @@ async function validateSuppliers(candidates, searchContext) {
     });
   }
 
-  const verificationOptions = {
-    concurrency: searchContext.settings.searchConfig?.contactVerificationConcurrency || 3,
-    timeout: searchContext.settings.searchConfig?.contactVerificationTimeoutMs || 12000
-  };
+  // TEMPORARILY DISABLED: Contact verification (SendGrid dependency)
+  // const verificationOptions = {
+  //   concurrency: searchContext.settings.searchConfig?.contactVerificationConcurrency || 3,
+  //   timeout: searchContext.settings.searchConfig?.contactVerificationTimeoutMs || 12000
+  // };
 
-  console.log('[Validation] Starting on-site contact verification...');
-  const { verified: contactVerified, rejected: contactRejected } = await verifySupplierContacts(
-    websiteValid,
-    verificationOptions
-  );
+  // console.log('[Validation] Starting on-site contact verification...');
+  // const { verified: contactVerified, rejected: contactRejected } = await verifySupplierContacts(
+  //   websiteValid,
+  //   verificationOptions
+  // );
 
-  if (contactRejected.length > 0) {
-    await appendLog(searchContext.searchId, {
-      level: 'warn',
-      message: `Rejected ${contactRejected.length} suppliers without verifiable on-site contact details`,
-      context: {
-        rejected: contactRejected.slice(0, 10).map((item) => ({
-          company: item.supplier?.company_name || 'Unknown',
-          website: item.supplier?.website || null,
-          candidateEmail: item.evidence?.candidateEmail || null,
-          reason: item.reason || 'Unknown'
-        }))
-      }
-    });
-  }
+  // if (contactRejected.length > 0) {
+  //   await appendLog(searchContext.searchId, {
+  //     level: 'warn',
+  //     message: `Rejected ${contactRejected.length} suppliers without verifiable on-site contact details`,
+  //     context: {
+  //       rejected: contactRejected.slice(0, 10).map((item) => ({
+  //         company: item.supplier?.company_name || 'Unknown',
+  //         website: item.supplier?.website || null,
+  //         candidateEmail: item.evidence?.candidateEmail || null,
+  //         reason: item.reason || 'Unknown'
+  //       }))
+  //     }
+  //   });
+  // }
 
-  if (!contactVerified.length) {
-    throw new Error('No suppliers passed contact verification. All candidates lacked verifiable on-site emails.');
-  }
+  // if (!contactVerified.length) {
+  //   throw new Error('No suppliers passed contact verification. All candidates lacked verifiable on-site emails.');
+  // }
 
-  const { maxSuppliers, minSuppliers } = searchContext.settings.searchConfig;
-  const finalSuppliers = contactVerified.slice(0, maxSuppliers).map((result, index) => {
-    const mapped = mapSupplierCandidate(result.supplier, index, searchContext);
+  // Use websiteValid suppliers directly (skip contact verification)
+  const finalSuppliers = websiteValid.slice(0, maxSuppliers).map((result, index) => {
+    const mapped = mapSupplierCandidate(result, index, searchContext);
     mapped.metadata = {
       ...mapped.metadata,
-      contactVerification: {
-        status: result.status,
-        evidence: result.evidence
+      websiteValidation: {
+        status: result.validation?.status,
+        evidence: result.validation?.evidence
       }
     };
     return mapped;
@@ -389,6 +392,105 @@ async function queueEmailForSupplier({ supplier, emailContent, settings, searchC
   return job;
 }
 
+/**
+ * Search for suppliers using Google Search API + GPT for structuring
+ * This replaces the previous GPT-only approach which caused hallucinations
+ * Architecture: Google Search (real results) → GPT (structuring only)
+ */
+async function searchSuppliersWithGoogleAndGPT({ input, settings, signal }) {
+  console.log('[SearchService] Starting Google Search + GPT structuring pipeline');
+
+  // Step 1: Build Google Search query from product description
+  const searchQuery = `${input.productDescription} supplier manufacturer ${input.preferredRegion || 'china'} B2B wholesale`;
+
+  console.log('[SearchService] Google Search query:', searchQuery.substring(0, 150));
+
+  // Step 2: Execute Google Search to get REAL supplier websites
+  const googleResults = await searchSuppliers({
+    query: searchQuery,
+    maxResults: Math.min(settings.searchConfig?.maxSuppliers * 2 || 20, 30), // Get 2x more results for filtering
+    apiKey: settings.apiKeys?.google || process.env.GOOGLE_API_KEY,
+    searchEngineId: settings.searchEngineId || process.env.GOOGLE_SEARCH_ENGINE_ID,
+    signal
+  });
+
+  console.log('[SearchService] Google Search returned', googleResults.length, 'results');
+
+  // Step 3: Prepare structured context for GPT to process Google results
+  const googleResultsContext = googleResults.map((result, index) => ({
+    index: index + 1,
+    title: result.title,
+    link: result.link,
+    snippet: result.snippet,
+    displayLink: result.displayLink
+  }));
+
+  // Step 4: Build GPT prompt to structure Google results into supplier format
+  const structuringPrompt = {
+    role: 'system',
+    content: `You are a procurement assistant that structures supplier information from Google Search results.
+
+CRITICAL RULES:
+1. ONLY use information from the provided Google Search results
+2. DO NOT invent or hallucinate any company names, emails, or contact information
+3. If contact information is not in the search results, use "Not available" or leave empty
+4. Extract company name from the website domain or title
+5. Use the website link directly from Google results
+6. Infer manufacturing capabilities from snippet text only
+
+OUTPUT FORMAT: JSON object with "suppliers" array containing ${settings.searchConfig?.minSuppliers || 5}-${settings.searchConfig?.maxSuppliers || 10} suppliers.
+
+Each supplier MUST have:
+- company_name: Extract from domain or title (REQUIRED)
+- website: Direct link from Google (REQUIRED)
+- email: Only if found in snippet, otherwise empty string
+- phone: Only if found in snippet, otherwise empty string
+- country: Infer from domain (.cn = China, etc) or use "${input.preferredRegion || 'china'}"
+- city: Only if mentioned in snippet, otherwise empty string
+- manufacturing_capabilities: Infer from product mentions in snippet
+- production_capacity: Only if mentioned, otherwise empty string
+- certifications: Only if mentioned (ISO, CE, etc), otherwise empty string
+- years_in_business: Only if mentioned, otherwise empty string
+- estimated_price_range: Only if mentioned, otherwise empty string
+- minimum_order_quantity: Only if mentioned, otherwise empty string
+
+PRODUCT REQUIREMENTS:
+- Product: ${input.productDescription}
+- Quantity: ${input.quantity || 'Not specified'}
+- Target Price: ${input.targetPrice || 'Not specified'}
+- Additional: ${input.additionalRequirements || 'None'}
+- Region: ${input.preferredRegion || 'china'}`
+  };
+
+  const userPrompt = {
+    role: 'user',
+    content: `Here are ${googleResults.length} REAL supplier search results from Google. Structure them into the supplier format.
+
+GOOGLE SEARCH RESULTS:
+${JSON.stringify(googleResultsContext, null, 2)}
+
+Return ONLY suppliers that match the product requirements. Prioritize results with clear B2B/manufacturer indicators.`
+  };
+
+  // Step 5: Call GPT to structure Google results (NOT to generate suppliers)
+  console.log('[SearchService] Sending Google results to GPT for structuring');
+
+  const structuredSuppliers = await chatCompletionJson({
+    model: OPENAI_MODELS.SMART,
+    messages: [structuringPrompt, userPrompt],
+    temperature: TEMPERATURE.FACTUAL,
+    maxTokens: MAX_TOKENS.SEARCH,
+    signal,
+    apiKey: settings.apiKeys?.openai || process.env.OPENAI_API_KEY
+  });
+
+  console.log('[SearchService] GPT structured suppliers:', {
+    suppliersCount: structuredSuppliers.suppliers?.length || 0
+  });
+
+  return structuredSuppliers;
+}
+
 export async function runSupplierSearch(payload, settings, { signal } = {}) {
   const input = validateSearchRequest(payload);
   const runtimeSettings = JSON.parse(JSON.stringify(settings || {}));
@@ -424,22 +526,12 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     settings
   };
 
-  const searchMessages = buildSupplierSearchMessages(settings, {
-    productDescription: input.productDescription,
-    targetPrice: input.targetPrice,
-    quantity: input.quantity,
-    additionalRequirements: input.additionalRequirements,
-    preferredRegion: input.preferredRegion
-  });
-
-  // Use gpt-4o-search-preview with web_search_options to find REAL suppliers from the internet
-  // Note: gpt-4o-search-preview does not support temperature parameter
-  const supplierResponse = await chatCompletionWithWebSearch({
-    messages: searchMessages,
-    searchContextSize: 'high', // Use maximum search context for finding suppliers
-    maxTokens: MAX_TOKENS.SEARCH,
-    signal,
-    apiKey: settings.apiKeys?.openai || process.env.OPENAI_API_KEY
+  // NEW ARCHITECTURE: Google Search (real results) + GPT (structuring only)
+  // This replaces the old chatCompletionWithWebSearch approach which caused hallucinations
+  const supplierResponse = await searchSuppliersWithGoogleAndGPT({
+    input,
+    settings,
+    signal
   });
 
   const suppliers = await validateSuppliers(supplierResponse, { settings, searchId });
@@ -449,123 +541,126 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
     context: { count: suppliers.length }
   });
 
-  const emailResults = [];
-  let index = 0;
-  for (const supplier of suppliers) {
-    const supplierContext = {
-      ...searchContext,
-      batchIndex: index,
-      totalSuppliers: suppliers.length
-    };
+  // TEMPORARILY DISABLED: Email sending (SendGrid dependency causing 16min timeouts)
+  // const emailResults = [];
+  // let index = 0;
+  // for (const supplier of suppliers) {
+  //   const supplierContext = {
+  //     ...searchContext,
+  //     batchIndex: index,
+  //     totalSuppliers: suppliers.length
+  //   };
 
-    try {
-      await enforceSendgridPolicy({ settings, searchId });
-      const emailContent = await generateEmailForSupplier({
-        supplier,
-        settings,
-        searchContext: supplierContext,
-        abortSignal: signal
-      });
+  //   try {
+  //     await enforceSendgridPolicy({ settings, searchId });
+  //     const emailContent = await generateEmailForSupplier({
+  //       supplier,
+  //       settings,
+  //       searchContext: supplierContext,
+  //       abortSignal: signal
+  //     });
 
-      const job = await queueEmailForSupplier({
-        supplier,
-        emailContent,
-        settings,
-        searchContext: supplierContext
-      });
+  //     const job = await queueEmailForSupplier({
+  //       supplier,
+  //       emailContent,
+  //       settings,
+  //       searchContext: supplierContext
+  //     });
 
-      await recordEmailSend({
-        searchId,
-        supplierId: supplier.id,
-        recipientEmail: supplier.email,
-        status: 'queued',
-        language: emailContent.language
-      });
+  //     await recordEmailSend({
+  //       searchId,
+  //       supplierId: supplier.id,
+  //       recipientEmail: supplier.email,
+  //       status: 'queued',
+  //       language: emailContent.language
+  //     });
 
-      // Record email queued in metrics
-      recordEmail('queued');
+  //     // Record email queued in metrics
+  //     recordEmail('queued');
 
-      await updateSupplier(searchId, supplier.id, (current) => ({
-        ...current,
-        status: 'Email Queued',
-        last_contact: new Date().toISOString(),
-        conversation_history: [
-          ...(current.conversation_history || []),
-          {
-            direction: 'system',
-            subject: 'Email queued for sending',
-            body: `Job ID: ${job.id}`,
-            provider: 'bull-queue',
-            queued_at: new Date().toISOString(),
-            job_id: job.id
-          }
-        ]
-      }));
+  //     await updateSupplier(searchId, supplier.id, (current) => ({
+  //       ...current,
+  //       status: 'Email Queued',
+  //       last_contact: new Date().toISOString(),
+  //       conversation_history: [
+  //         ...(current.conversation_history || []),
+  //         {
+  //           direction: 'system',
+  //           subject: 'Email queued for sending',
+  //           body: `Job ID: ${job.id}`,
+  //           provider: 'bull-queue',
+  //           queued_at: new Date().toISOString(),
+  //           job_id: job.id
+  //         }
+  //       ]
+  //     }));
 
-      emailResults.push({
-        supplierId: supplier.id,
-        status: 'queued',
-        jobId: job.id,
-        subject: emailContent.subject
-      });
+  //     emailResults.push({
+  //       supplierId: supplier.id,
+  //       status: 'queued',
+  //       jobId: job.id,
+  //       subject: emailContent.subject
+  //     });
 
-      await appendLog(searchId, {
-        message: LOG_MESSAGES.EMAIL_QUEUED(supplier.company_name),
-        context: {
-          supplierId: supplier.id,
-          jobId: job.id,
-          subject: emailContent.subject
-        }
-      });
-    } catch (error) {
-      await recordEmailSend({
-        searchId,
-        supplierId: supplier.id,
-        recipientEmail: supplier.email,
-        status: 'failed',
-        error: error.message,
-        language: 'en' // Default to English for failed emails
-      });
+  //     await appendLog(searchId, {
+  //       message: LOG_MESSAGES.EMAIL_QUEUED(supplier.company_name),
+  //       context: {
+  //         supplierId: supplier.id,
+  //         jobId: job.id,
+  //         subject: emailContent.subject
+  //       }
+  //     });
+  //   } catch (error) {
+  //     await recordEmailSend({
+  //       searchId,
+  //       supplierId: supplier.id,
+  //       recipientEmail: supplier.email,
+  //       status: 'failed',
+  //       error: error.message,
+  //       language: 'en' // Default to English for failed emails
+  //     });
 
-      await updateSupplier(searchId, supplier.id, (current) => ({
-        ...current,
-        status: 'Email Failed',
-        notes: [current.notes, `Send failed: ${error.message}`].filter(Boolean).join('\n'),
-        conversation_history: [
-          ...(current.conversation_history || []),
-          {
-            direction: 'system',
-            subject: 'Send failure',
-            body: error.message,
-            logged_at: new Date().toISOString()
-          }
-        ]
-      }));
+  //     await updateSupplier(searchId, supplier.id, (current) => ({
+  //       ...current,
+  //       status: 'Email Failed',
+  //       notes: [current.notes, `Send failed: ${error.message}`].filter(Boolean).join('\n'),
+  //       conversation_history: [
+  //         ...(current.conversation_history || []),
+  //         {
+  //           direction: 'system',
+  //           subject: 'Send failure',
+  //           body: error.message,
+  //           logged_at: new Date().toISOString()
+  //         }
+  //       ]
+  //     }));
 
-      emailResults.push({
-        supplierId: supplier.id,
-        status: 'failed',
-        error: error.message
-      });
+  //     emailResults.push({
+  //       supplierId: supplier.id,
+  //       status: 'failed',
+  //       error: error.message
+  //     });
 
-      await appendLog(searchId, {
-        level: 'error',
-        message: LOG_MESSAGES.EMAIL_FAILED(supplier.company_name),
-        context: {
-          supplierId: supplier.id,
-          error: error.message
-        }
-      });
+  //     await appendLog(searchId, {
+  //       level: 'error',
+  //       message: LOG_MESSAGES.EMAIL_FAILED(supplier.company_name),
+  //       context: {
+  //         supplierId: supplier.id,
+  //         error: error.message
+  //       }
+  //     });
 
-      if (error.message.includes('Daily email limit')) {
-        break;
-      }
-    }
+  //     if (error.message.includes('Daily email limit')) {
+  //       break;
+  //     }
+  //   }
 
-    index += 1;
-  }
+  //   index += 1;
+  // }
 
-  const queuedCount = emailResults.filter((result) => result.status === 'queued').length;
+  // const queuedCount = emailResults.filter((result) => result.status === 'queued').length;
+  const emailResults = []; // Empty array (email sending disabled)
+  const queuedCount = 0;
   const completedRecord = await finalizeSearch(searchId, 'completed', {
     metrics: {
       emailsQueued: queuedCount,
@@ -578,23 +673,24 @@ export async function runSupplierSearch(payload, settings, { signal } = {}) {
 
   await appendLog(searchId, { message: LOG_MESSAGES.SEARCH_COMPLETED, context: { searchId } });
 
-  await sendSummaryEmail(
-    {
-      settings,
-      summary: {
-        searchId,
-        suppliersContacted: suppliers.length,
-        emailsQueued: queuedCount
-      }
-    },
-    settings.apiKeys?.sendgrid || process.env.SENDGRID_API_KEY
-  ).catch((error) => {
-    appendLog(searchId, {
-      level: 'warn',
-      message: LOG_MESSAGES.SUMMARY_EMAIL_FAILED,
-      context: { error: error.message }
-    });
-  });
+  // TEMPORARILY DISABLED: Summary email (SendGrid dependency)
+  // await sendSummaryEmail(
+  //   {
+  //     settings,
+  //     summary: {
+  //       searchId,
+  //       suppliersContacted: suppliers.length,
+  //       emailsQueued: queuedCount
+  //     }
+  //   },
+  //   settings.apiKeys?.sendgrid || process.env.SENDGRID_API_KEY
+  // ).catch((error) => {
+  //   appendLog(searchId, {
+  //     level: 'warn',
+  //     message: LOG_MESSAGES.SUMMARY_EMAIL_FAILED,
+  //     context: { error: error.message }
+  //     });
+  // });
 
   return {
     ...completedRecord,
