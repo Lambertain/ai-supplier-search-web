@@ -92,6 +92,8 @@ export const settingsSchema = z.object({
 
   apiKeys: z.object({
     openai: z.string().optional(),
-    sendgrid: z.string().optional()
+    sendgrid: z.string().optional(),
+    google: z.string().optional(),
+    googleSearchEngineId: z.string().optional()
   }).optional()
 }).partial();

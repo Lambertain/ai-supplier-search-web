@@ -8,6 +8,8 @@ const router = Router();
 function presentSettings(settings) {
   const openaiKeySet = Boolean(settings.apiKeys?.openai || process.env.OPENAI_API_KEY);
   const sendgridKeySet = Boolean(settings.apiKeys?.sendgrid || process.env.SENDGRID_API_KEY);
+  const googleKeySet = Boolean(settings.apiKeys?.google || process.env.GOOGLE_API_KEY);
+  const googleSearchEngineIdSet = Boolean(settings.apiKeys?.googleSearchEngineId || process.env.GOOGLE_SEARCH_ENGINE_ID);
 
   // Security: Remove sensitive API keys from response
   const { apiKeys, ...safeSettings } = settings;
@@ -16,7 +18,9 @@ function presentSettings(settings) {
     ...safeSettings,
     secrets: {
       openai: openaiKeySet,
-      sendgrid: sendgridKeySet
+      sendgrid: sendgridKeySet,
+      google: googleKeySet,
+      googleSearchEngineId: googleSearchEngineIdSet
     }
   };
 }

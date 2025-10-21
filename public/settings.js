@@ -62,9 +62,13 @@ function setSecretsStatus(settings) {
   if (!secretsStatus) return;
   const openai = settings.secrets?.openai ? 'Налаштовано' : 'Відсутній';
   const sendgrid = settings.secrets?.sendgrid ? 'Налаштовано' : 'Відсутній';
+  const google = settings.secrets?.google ? 'Налаштовано' : 'Відсутній';
+  const googleSearchEngineId = settings.secrets?.googleSearchEngineId ? 'Налаштовано' : 'Відсутній';
   secretsStatus.innerHTML = `
     <p><strong>OpenAI API Key:</strong> ${openai}</p>
     <p><strong>SendGrid API Key:</strong> ${sendgrid}</p>
+    <p><strong>Google API Key:</strong> ${google}</p>
+    <p><strong>Google Search Engine ID:</strong> ${googleSearchEngineId}</p>
   `;
 }
 
@@ -94,6 +98,8 @@ function populateSettingsForm(settings) {
   settingsForm.querySelector('#autoReply').value = String(Boolean(settings.automation?.autoReply));
   settingsForm.querySelector('#autoReplyDelay').value = settings.automation?.autoReplyDelayMinutes ?? '';
   settingsForm.querySelector('#openaiKey').value = settings.apiKeys?.openai ?? '';
+  settingsForm.querySelector('#googleApiKey').value = settings.apiKeys?.google ?? '';
+  settingsForm.querySelector('#googleSearchEngineId').value = settings.apiKeys?.googleSearchEngineId ?? '';
 
   settingsForm.querySelector('#fromEmail').value = settings.emailConfig?.fromEmail ?? '';
   settingsForm.querySelector('#fromName').value = settings.emailConfig?.fromName ?? '';
@@ -145,7 +151,14 @@ function formDataToNestedObject(form) {
             .map((item) => item.trim())
             .filter(Boolean);
         }
-        cursor[part] = parsed;
+
+        // Skip empty strings to avoid Zod validation errors
+        // Zod's z.string().optional() expects either a non-empty string or undefined
+        // Empty strings ("") will fail validation, so we filter them out
+        // This allows users to leave fields blank without triggering 400 errors
+        if (parsed !== '' && parsed != null) {
+          cursor[part] = parsed;
+        }
       } else {
         cursor[part] = cursor[part] || {};
         cursor = cursor[part];
