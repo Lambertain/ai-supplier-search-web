@@ -492,9 +492,9 @@ Return ONLY suppliers that match the product requirements. Prioritize results wi
   console.log('[SearchService] Sending Google results to GPT for structuring');
 
   const structuredSuppliers = await chatCompletionJson({
-    model: OPENAI_MODELS.SMART,
+    model: OPENAI_MODELS.SEARCH,
     messages: [structuringPrompt, userPrompt],
-    temperature: TEMPERATURE.FACTUAL,
+    temperature: TEMPERATURE.SEARCH,
     maxTokens: MAX_TOKENS.SEARCH,
     signal,
     apiKey: settings.apiKeys?.openai || process.env.OPENAI_API_KEY
